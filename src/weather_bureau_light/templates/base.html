@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Weather Bureau Light{% endblock %}</title>
+
+{# Icons are drawn by scripts/make_icons.py. iOS uses apple-touch-icon for a home
+   screen bookmark and ignores everything else, including SVG; the label beneath it
+   comes from apple-mobile-web-app-title, which is short because iOS truncates it. #}
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png') }}">
+<link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}">
+<meta name="apple-mobile-web-app-title" content="Weather">
+
 <link rel="stylesheet" href="{{ url_for('static', filename='metoffice.css') }}">
 </head>
 <body class="season-{{ season }}">

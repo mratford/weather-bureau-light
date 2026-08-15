@@ -332,3 +332,48 @@ def test_healthz_spends_no_api_calls(client, fake_client):
     for _ in range(5):
         client.get("/healthz")
     assert fake_client.calls[before:] == []
+
+
+# --- Icons ----------------------------------------------------------------------
+
+
+def test_home_screen_icon_is_linked_and_served(client):
+    """iOS uses apple-touch-icon for a home screen bookmark and ignores the rest."""
+    assert 'rel="apple-touch-icon"' in text(client.get("/forecast/00350584"))
+    response = client.get("/static/apple-touch-icon.png")
+    assert response.status_code == 200
+    assert response.data.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_home_screen_icon_is_the_size_ios_asks_for(client):
+    """iOS scales anything else, and scales it badly."""
+    import struct
+
+    data = client.get("/static/apple-touch-icon.png").data
+    width, height = struct.unpack(">II", data[16:24])
+    assert (width, height) == (180, 180)
+
+
+def test_home_screen_icon_is_opaque(client):
+    """iOS does not composite a transparent icon, it fills the gaps with black."""
+    import struct
+
+    data = client.get("/static/apple-touch-icon.png").data
+    colour_type = struct.unpack(">B", data[25:26])[0]
+    assert colour_type == 2, "expected truecolour without an alpha channel"
+
+
+def test_favicon_and_manifest_are_served(client):
+    assert client.get("/static/favicon-32.png").status_code == 200
+    response = client.get("/static/site.webmanifest")
+    assert response.status_code == 200
+    assert "icon-512.png" in text(response)
+
+
+def test_manifest_icons_all_exist(client):
+    """A manifest naming a missing icon fails silently in the browser."""
+    import json
+
+    manifest = json.loads(text(client.get("/static/site.webmanifest")))
+    for icon in manifest["icons"]:
+        assert client.get(f"/static/{icon['src']}").status_code == 200, icon["src"]
