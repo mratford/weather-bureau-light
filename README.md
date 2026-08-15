@@ -4,7 +4,7 @@
 
 The new Met Office website is very pretty but light text on a dark background
 is difficult to read for some of us with astigmatism and there's less
-information on a single page. This repo creates a website that uses the Met 
+information on a single page. This repo creates a local website that uses the Met 
 Office API to display dense forecast data on a light background. 
 
 There is a bonus "likely range" row which is the 10th–90th percentile spread
