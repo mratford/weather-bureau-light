@@ -1,15 +1,24 @@
-/* Old Met Office forecast page: dense table, navy masthead, temperature chips. */
+/* Old Met Office forecast page: dense table, seasonal masthead, temperature chips. */
 
+/* Colour is confined to the masthead, which is the brand bar. Everything below it is
+   black text on white or light grey, as the Met Office's own pages are.
+
+   The masthead palette follows the season - see the season-* rules below. Autumn is
+   the default here so the page still looks deliberate if the class is ever missing. */
 :root {
-  --navy: #00285f;
-  --navy-mid: #003f8f;
-  --blue: #0069c2;
-  --blue-pale: #e7eff7;
-  --rule: #c9d4e2;
-  --ink: #1c1c1c;
-  --ink-soft: #5a6473;
+  --brand: #6b4a16;
+  --brand-ink: #ffffff;
+  --brand-edge: #8a6320;
+  --action: #c9962a;
+  --action-hover: #d9a53a;
+  --action-ink: #2b1e06;
+  --rule: #cfcfcf;
+  --ink: #000000;
+  --ink-soft: #4c4c4c;
   --page: #ffffff;
-  --band: #f4f7fa;
+  --band: #f2f2f2;
+  --band-strong: #e4e4e4;
+  --hilite: #e8e8e8;
   --warn: #8a5300;
   --warn-bg: #fdf3e2;
   --error: #a4262c;
@@ -33,9 +42,35 @@ body {
   padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
+/* ---- seasonal masthead palettes ----
+
+   Two of the four seasons want a pale bar, so the text colour is a token too rather
+   than a fixed white: white on the summer yellow would be unreadable. Each pairing
+   below clears 4.5:1 against its own background, bar text and button alike. */
+
+.season-autumn {                 /* deep golden brown */
+  --brand: #6b4a16; --brand-ink: #ffffff; --brand-edge: #8a6320;
+  --action: #c9962a; --action-hover: #d9a53a; --action-ink: #2b1e06;
+}
+
+.season-winter {                 /* icy blue */
+  --brand: #a9d3e8; --brand-ink: #0b2e3d; --brand-edge: #6ea8c4;
+  --action: #0e5273; --action-hover: #14648b; --action-ink: #ffffff;
+}
+
+.season-spring {                 /* verdant green */
+  --brand: #1f6b3a; --brand-ink: #ffffff; --brand-edge: #2f8b4f;
+  --action: #a7d96b; --action-hover: #b9e484; --action-ink: #102c18;
+}
+
+.season-summer {                 /* bright sunny yellow */
+  --brand: #f5c518; --brand-ink: #3a2c00; --brand-edge: #c69f10;
+  --action: #6b5200; --action-hover: #856500; --action-ink: #ffffff;
+}
+
 /* ---- masthead ---- */
 
-.masthead { background: var(--navy); color: #fff; }
+.masthead { background: var(--brand); color: var(--brand-ink); }
 
 .masthead-inner {
   max-width: 1400px; margin: 0 auto; padding: 0.85rem 1.25rem;
@@ -43,7 +78,7 @@ body {
 }
 
 .brand {
-  color: #fff; text-decoration: none; font-size: 1.3rem; font-weight: 700;
+  color: var(--brand-ink); text-decoration: none; font-size: 1.3rem; font-weight: 700;
   letter-spacing: 0.01em;
 }
 .brand span { font-weight: 300; opacity: 0.85; }
@@ -52,20 +87,21 @@ body {
 
 .site-search input {
   min-width: 15rem; padding: 0.45rem 0.7rem; font-size: 0.95rem;
-  border: 1px solid var(--navy-mid); border-radius: 2px;
+  border: 1px solid var(--brand-edge); border-radius: 2px;
 }
 
 .site-search button {
-  padding: 0.45rem 1rem; font-size: 0.95rem; cursor: pointer; color: #fff;
-  background: var(--blue); border: 1px solid var(--blue); border-radius: 2px;
+  padding: 0.45rem 1rem; font-size: 0.95rem; cursor: pointer; color: var(--action-ink);
+  background: var(--action); border: 1px solid var(--action); border-radius: 2px;
+  font-weight: 600;
 }
-.site-search button:hover { background: #0057a3; }
+.site-search button:hover { background: var(--action-hover); }
 
 /* ---- page furniture ---- */
 
 .page { max-width: 1400px; margin: 0 auto; padding: 1.25rem; }
 
-.place { margin: 0.4rem 0 0.2rem; font-size: 1.8rem; font-weight: 600; color: var(--navy); }
+.place { margin: 0.4rem 0 0.2rem; font-size: 1.8rem; font-weight: 600; color: var(--ink); }
 .place .region { font-weight: 400; color: var(--ink-soft); font-size: 1.1rem; }
 
 .issued { margin: 0 0 1rem; color: var(--ink-soft); font-size: 0.85rem; }
@@ -105,14 +141,14 @@ body {
   border-top: 3px solid transparent; display: flex; flex-direction: column;
   align-items: center; gap: 0.2rem;
 }
-.day-tab:hover { background: var(--blue-pale); }
+.day-tab:hover { background: var(--hilite); }
 
 .day-tab.is-selected {
-  background: var(--blue-pale); border-top-color: var(--blue);
-  box-shadow: inset 0 -3px 0 var(--blue-pale);
+  background: var(--band-strong); border-top-color: var(--ink);
+  box-shadow: inset 0 -3px 0 var(--band-strong);
 }
 
-.day-name { font-weight: 600; font-size: 0.9rem; color: var(--navy); }
+.day-name { font-weight: 600; font-size: 0.9rem; color: var(--ink); }
 .day-symbol .wx { width: 38px; height: 38px; }
 .day-temps { display: flex; gap: 0.5rem; font-size: 1rem; }
 .t-max { font-weight: 700; }
@@ -136,7 +172,7 @@ body {
   position: sticky; left: 0; z-index: 2;
   width: var(--row-label-w); min-width: var(--row-label-w);
   padding: 0.5rem 0.75rem; text-align: left; font-weight: 600;
-  color: var(--navy); background: var(--band);
+  color: var(--ink); background: var(--band);
   border-right: 2px solid var(--rule);
 }
 
@@ -148,8 +184,8 @@ body {
 .forecast-table tr { border-top: 1px solid var(--rule); }
 .forecast-table tr:first-child { border-top: 0; }
 
-.row-time td { font-weight: 700; color: var(--navy); background: var(--band); }
-.row-time th[scope="row"] { background: #e3e9f1; }
+.row-time td { font-weight: 700; color: var(--ink); background: var(--band); }
+.row-time th[scope="row"] { background: var(--band-strong); }
 
 .row-symbol td { padding: 0.35rem; }
 .row-symbol .wx { width: 34px; height: 34px; }
@@ -157,18 +193,18 @@ body {
 .row-temp td { font-size: 1.05rem; }
 .row-feels td { color: var(--ink-soft); }
 
-.row-range { background: #fbfcfe; }
+.row-range { background: #fafafa; }
 .row-range td { font-size: 0.78rem; color: var(--ink-soft); white-space: nowrap; }
 .row-range .hint { display: block; font-weight: 400; font-size: 0.72rem; color: var(--ink-soft); }
 
-.row-gust .strong { font-weight: 700; color: var(--navy); }
+.row-gust .strong { font-weight: 700; color: var(--ink); }
 
-.na { color: #9aa4b2; }
+.na { color: #8a8a8a; }
 
 /* Temperature chips, warm to cool. */
 .temp-chip {
   display: inline-block; min-width: 2.6rem; padding: 0.15rem 0.35rem;
-  border-radius: 3px; font-weight: 700; background: var(--blue-pale);
+  border-radius: 3px; font-weight: 700; background: var(--band-strong);
 }
 .temp-chip[data-t^="-"]           { background: #d6e6f5; }
 .temp-chip[data-t="0"],
@@ -192,7 +228,7 @@ body {
 
 /* Wind arrow points the way the wind blows *to*, hence the 180deg offset. */
 .wind-arrow {
-  display: inline-block; color: var(--navy); font-size: 1rem;
+  display: inline-block; color: var(--ink); font-size: 1rem;
   transform: rotate(calc(var(--dir) + 180deg));
 }
 .wind-speed { display: block; font-weight: 600; }
@@ -215,7 +251,7 @@ abbr[title] { text-decoration: none; border-bottom: 1px dotted var(--ink-soft); 
   display: flex; align-items: baseline; gap: 0.6rem;
   padding: 0.6rem 0.4rem; text-decoration: none; color: var(--ink);
 }
-.site-list a:hover { background: var(--blue-pale); }
+.site-list a:hover { background: var(--hilite); }
 .site-list .region { color: var(--ink-soft); font-size: 0.85rem; }
 .site-list .coords { margin-left: auto; color: var(--ink-soft); font-size: 0.75rem; }
 

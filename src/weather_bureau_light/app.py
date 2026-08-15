@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from flask import Flask, abort, redirect, render_template, request, url_for
 
-from .config import Config, ConfigError
+from .config import UK_TZ, Config, ConfigError
 from .datahub import DataHubError
+from .season import season_for
 from .service import ForecastService
 
 log = logging.getLogger(__name__)
@@ -20,6 +22,11 @@ def create_app(config: Config | None = None, service: ForecastService | None = N
 
     def svc() -> ForecastService:
         return app.config["SERVICE"]
+
+    @app.context_processor
+    def season() -> dict[str, str]:
+        """Every page carries the season, which picks the masthead palette."""
+        return {"season": season_for(datetime.now(UK_TZ).date())}
 
     @app.route("/")
     def index():
