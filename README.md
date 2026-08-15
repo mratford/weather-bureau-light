@@ -82,7 +82,7 @@ Things worth knowing, all confirmed against the live service by `scripts/discove
 ### Development
 
 ```sh
-uv run pytest                     # 171 tests, no network required
+uv run pytest                     # 172 tests, no network required
 uv run python scripts/discover.py # dump the live API shape to scratch/discovery/
 ```
 
@@ -100,5 +100,8 @@ which a copy or a backup restore would silently reset.
 
 ## Attribution
 
-Forecast data © Crown copyright, Met Office. The weather symbols are drawn for this
-project — the Met Office's own artwork is Crown copyright and is not used.
+Forecast data © Crown copyright, Met Office. The page footer carries the "Data supplied
+by the Met Office" acknowledgement the DataHub terms require. The
+weather symbols are drawn for this project — the Met Office's own artwork is Crown
+copyright and is not used.
+

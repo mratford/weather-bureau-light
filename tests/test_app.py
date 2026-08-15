@@ -191,6 +191,11 @@ def test_units_note_documents_visibility_bands(client):
     assert "VP" in body and "40km" in body
 
 
+def test_required_met_office_attribution_is_shown(client):
+    """Clause 2.6.1 of the DataHub terms asks for this wording by the visualisation."""
+    assert "Data supplied by the Met Office" in text(client.get("/forecast/00350584"))
+
+
 def test_static_css_is_served(client):
     response = client.get("/static/metoffice.css")
     assert response.status_code == 200
