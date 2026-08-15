@@ -37,8 +37,22 @@ uv run weather-bureau-light
 ```
 and open <http://127.0.0.1:5000/>.
 
-The default location is Brentwood (Essex). Use the search box for anywhere else, or
-set `WBL_DEFAULT_SITE` to a spot-site id.
+The default location is Brentwood (Essex). Use the search box for anywhere else, or set
+`WBL_DEFAULT_SITE` in `.env` to change where the front page lands. That takes either a
+place name or postcode
+```
+WBL_DEFAULT_SITE=Chelmsford
+```
+or a spot-site id, which is the Met Office's own identifier for one of the fixed points
+it forecasts for
+```
+WBL_DEFAULT_SITE=00350584
+```
+A name is looked up the same way the search box looks it up, so an ambiguous one lands on
+whichever match ranks first — the resolved site is logged at startup and named at the top
+of the page. An id is unambiguous and never changes; find one by searching for the place
+in the app and reading it out of the `/forecast/<id>` URL. Keep the leading zeros. If the
+value matches nothing at all the page falls back to Brentwood and logs a warning.
 
 ## Development notes 
 ### Notes on the API
@@ -75,7 +89,7 @@ Things worth knowing, all confirmed against the live service by `scripts/discove
 ### Development
 
 ```sh
-uv run pytest                     # 154 tests, no network required
+uv run pytest                     # 168 tests, no network required
 uv run python scripts/discover.py # dump the live API shape to scratch/discovery/
 ```
 

@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
+import logging
 import re
+from dataclasses import replace
 
 
 def text(response) -> str:
     return response.get_data(as_text=True)
+
+
+def client_defaulting_to(default_site, config, fake_client, geocoder):
+    """A test client with WBL_DEFAULT_SITE set to an id, a place name or nonsense."""
+    from weather_bureau_light.app import create_app
+    from weather_bureau_light.service import ForecastService
+
+    configured = replace(config, default_site=default_site)
+    service = ForecastService(configured, client=fake_client, geocoder=geocoder)
+    app = create_app(config=configured, service=service)
+    app.config["TESTING"] = True
+    return app.test_client()
 
 
 def test_index_redirects_to_default_site(client):
@@ -14,6 +28,40 @@ def test_index_redirects_to_default_site(client):
     assert response.status_code == 302
     # Brentwood is the nearest fixture site to the configured default coordinates.
     assert "/forecast/00350584" in response.headers["Location"]
+
+
+def test_default_site_accepts_a_spot_site_id(config, fake_client, geocoder):
+    client = client_defaulting_to("00000003", config, fake_client, geocoder)
+    assert "/forecast/00000003" in client.get("/").headers["Location"]
+
+
+def test_default_site_accepts_a_place_name(config, fake_client, geocoder):
+    """A name is geocoded and mapped to its nearest site, as a search would be."""
+    client = client_defaulting_to("London", config, fake_client, geocoder)
+    assert "/forecast/00000003" in client.get("/").headers["Location"]
+
+
+def test_default_site_place_name_beats_the_hardcoded_fallback(config, fake_client, geocoder):
+    """Londonderry must not quietly come back as Brentwood."""
+    client = client_defaulting_to("Londonderry", config, fake_client, geocoder)
+    assert "/forecast/00000009" in client.get("/").headers["Location"]
+
+
+def test_default_site_accepts_a_postcode(config, fake_client, geocoder, caplog):
+    """CM14 4BX is in Brentwood, so check it resolved rather than merely fell back."""
+    client = client_defaulting_to("CM14 4BX", config, fake_client, geocoder)
+    with caplog.at_level(logging.WARNING, logger="weather_bureau_light.service"):
+        response = client.get("/")
+    assert "/forecast/00350584" in response.headers["Location"]
+    assert not caplog.records, "postcode was not resolved"
+
+
+def test_unresolvable_default_site_warns_and_falls_back(config, fake_client, geocoder, caplog):
+    client = client_defaulting_to("Chelmsfrod", config, fake_client, geocoder)
+    with caplog.at_level(logging.WARNING, logger="weather_bureau_light.service"):
+        response = client.get("/")
+    assert "/forecast/00350584" in response.headers["Location"]
+    assert any("Chelmsfrod" in record.getMessage() for record in caplog.records)
 
 
 def test_forecast_page_renders(client):

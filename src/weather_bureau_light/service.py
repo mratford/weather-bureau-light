@@ -69,10 +69,24 @@ class ForecastService:
         return None if site is None else self.name_site(site)
 
     def default_site(self) -> Site | None:
-        if self.config.default_site:
-            site = self.catalogue.get(self.config.default_site)
+        """Resolve WBL_DEFAULT_SITE, which may be a spot-site id or a place name.
+
+        The catalogue is tried first so existing ids keep working without having to
+        guess at their format; anything it does not know is geocoded like a search.
+        """
+        configured = self.config.default_site
+        if configured:
+            site = self.catalogue.get(configured)
+            if site is None:
+                hits = self.search(configured, limit=1)
+                if hits:
+                    site = hits[0].site
+                    log.info("default site %r resolved to %s", configured, site.display_name)
             if site is not None:
                 return self.name_site(site)
+            # Place names are ambiguous and ids are unguessable, so say so rather than
+            # leaving a typo looking like the default simply not working.
+            log.warning("WBL_DEFAULT_SITE=%r matched no site, falling back", configured)
         nearest = self.catalogue.nearest(DEFAULT_LATITUDE, DEFAULT_LONGITUDE)
         return None if nearest is None else self.name_site(nearest)
 
