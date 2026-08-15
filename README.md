@@ -10,6 +10,9 @@ Office API to display dense forecast data on a light background.
 There is a bonus "likely range" row which is the 10th–90th percentile spread
 for the temperature.
 
+Please note that the Met Office terms of service prohibit this being run as a public
+instance.
+
 ![The forecast page for Brentwood: a scrollable strip of day tabs, each with a weather symbol, max and min temperature and sunrise and sunset times, above an hourly table whose rows are weather symbol, chance of precipitation, temperature, feels like, likely range, wind speed and direction, wind gust, visibility, humidity, UV index and pressure.](docs/screenshot.jpg)
 
 ## Setup
