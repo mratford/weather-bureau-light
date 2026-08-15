@@ -47,12 +47,11 @@ class CacheEntry:
 
 @dataclass(frozen=True)
 class Fetched:
-    """A payload and where it came from.
+    """A payload together with when it was retrieved and whether it is a fallback.
 
-    The age of the data is not recoverable once a payload has been unwrapped from the
-    cache, so it travels with it. Without this a page served from a stale fallback is
-    indistinguishable from a live one, which is exactly how an expired API key managed
-    to look like a working forecast for hours.
+    The age of a response cannot be recovered once it has been unwrapped from the cache,
+    so it travels alongside it. This is what lets the page distinguish live data from a
+    stale fallback, and report the data's own time rather than the time it was rendered.
     """
 
     payload: Any

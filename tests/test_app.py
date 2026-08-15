@@ -287,7 +287,7 @@ def test_staleness_banner_names_the_age_when_the_api_is_down(client, fake_client
 
 
 def test_stale_page_reports_the_data_time_not_the_clock(client, fake_client):
-    """The bug this change exists to fix: 'Updated:' used to show the render time."""
+    """'Updated:' must state when the data was retrieved, not when the page rendered."""
     from datetime import datetime, timedelta
 
     from weather_bureau_light.config import UK_TZ
