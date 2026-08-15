@@ -54,9 +54,10 @@ class Config:
     """Fallback TTL, in seconds, for responses that are not tied to the forecast clock.
 
     Forecast and instance requests ignore this and expire when the wall-clock hour
-    turns instead: the data rolls hourly (its time axis advances a step and the leading
-    columns drop off), so an hour-aligned cache both keeps past hours off the table and
-    caps refetches at 24 a day per site rather than the 96 a 15-minute TTL would cost.
+    turns instead: the data rolls hourly, its time axis advancing a step, so refetching
+    on that boundary keeps the table current at 24 calls a day per site rather than the
+    96 a 15-minute TTL would cost. Hours that have already passed are dropped when the
+    table is built, in model.py, rather than being left to the cache to expire.
     """
     site_catalogue_ttl: int
     default_site: str | None

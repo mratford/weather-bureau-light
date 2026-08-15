@@ -377,3 +377,46 @@ def test_manifest_icons_all_exist(client):
     manifest = json.loads(text(client.get("/static/site.webmanifest")))
     for icon in manifest["icons"]:
         assert client.get(f"/static/{icon['src']}").status_code == 200, icon["src"]
+
+
+# --- Elapsed hours --------------------------------------------------------------
+
+
+def _at(client, monkeypatch, hour, minute=0):
+    """Render today's table as though it were a given time."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    monkeypatch.setattr(
+        "weather_bureau_light.model._now",
+        lambda tz: datetime(2026, 8, 15, hour, minute, tzinfo=ZoneInfo("Europe/London")),
+    )
+    body = text(client.get("/forecast/00350584"))
+    row = re.search(r'<tr class="row-time">(.*?)</tr>', body, re.S)
+    assert row, "no time row rendered"
+    return body, re.findall(r"<td>([^<]+)</td>", row.group(1))
+
+
+def test_table_starts_at_the_current_hour(client, monkeypatch):
+    _, hours = _at(client, monkeypatch, 17, 49)
+    assert hours[0] == "17:00", hours[:4]
+
+
+def test_table_does_not_show_hours_that_have_passed(client, monkeypatch):
+    _, hours = _at(client, monkeypatch, 17, 49)
+    for gone in ("04:00", "09:00", "16:00"):
+        assert gone not in hours, f"{gone} is in the past"
+
+
+def test_the_day_high_and_low_still_cover_the_whole_day(client, monkeypatch):
+    """The tab summarises the day, so it must not shrink as the day is used up."""
+    morning, _ = _at(client, monkeypatch, 4)
+    evening, _ = _at(client, monkeypatch, 21)
+
+    def first_tab(body):
+        return re.search(r'<a class="day-tab is-selected".*?</a>', body, re.S).group(0)
+
+    def temps(tab):
+        return re.findall(r'class="t-(?:max|min)">(-?\d+)&deg;', tab)
+
+    assert temps(first_tab(evening)) == temps(first_tab(morning))

@@ -21,6 +21,11 @@ from bpf_fixtures import (
 UK = ZoneInfo("Europe/London")
 SITE = Site("00350584", 51.62, 0.3088, "Brentwood", "Essex")
 
+#: Elapsed hours are dropped from the table, so these tests state where in the day they
+#: are standing. This is the first timestep the fixtures publish, which keeps every
+#: hour they build in the future and the assertions independent of the real clock.
+NOW = datetime(2026, 8, 15, 3, 0, tzinfo=timezone.utc)
+
 
 @pytest.fixture
 def forecast() -> model.Forecast:
@@ -33,6 +38,7 @@ def forecast() -> model.Forecast:
         probabilities=probabilities,
         probability_resolution=parameters.resolve([PROBABILITY_PARAM], PROBABILITY_FIELDS),
         tz=UK,
+        now=NOW,
     )
 
 
@@ -52,6 +58,7 @@ def _long_forecast(hours: int, **kwargs) -> model.Forecast:
         percentiles=covjson.parse_collection(build_percentile_doc(hours=hours)),
         percentile_resolution=parameters.resolve(PERCENTILE_PARAMS, PERCENTILE_FIELDS),
         tz=UK,
+        now=NOW,
         **kwargs,
     )
 
@@ -91,6 +98,7 @@ def _mixed_resolution_forecast(with_symbols: bool = True) -> model.Forecast:
         percentiles=covjson.parse_collection(_doc(*coverages)),
         percentile_resolution=parameters.resolve(names, PERCENTILE_FIELDS),
         tz=UK,
+        now=NOW,
     )
 
 
@@ -173,6 +181,7 @@ def test_probability_absent_when_collection_missing():
         percentiles=percentiles,
         percentile_resolution=parameters.resolve(PERCENTILE_PARAMS, PERCENTILE_FIELDS),
         tz=UK,
+        now=NOW,
     )
     step = forecast.days[0].timesteps[0]
     assert step.median("precipitation_probability") is None
@@ -274,6 +283,7 @@ def test_day_grouping_across_dst_boundary():
         percentiles=covjson.parse_collection(doc),
         percentile_resolution=parameters.resolve(["airTemperature1p5m"], PERCENTILE_FIELDS),
         tz=UK,
+        now=NOW,
     )
     by_date = {d.date: len(d.timesteps) for d in forecast.days}
     # 25 Oct starts at 00:00 UTC = 01:00 BST, so 24 UTC hours land inside it,
@@ -323,6 +333,7 @@ def test_edge_timesteps_without_percentile_data_are_dropped():
         probabilities=covjson.parse_collection(prob_doc),
         probability_resolution=parameters.resolve([PROBABILITY_PARAM], PROBABILITY_FIELDS),
         tz=UK,
+        now=NOW,
     )
     # 02:00Z precedes the percentile data, so no column should exist for it.
     stamps = {s.time.astimezone(timezone.utc).isoformat() for d in forecast.days for s in d.timesteps}
@@ -370,3 +381,79 @@ def test_age_text_survives_an_unknown_issue_time():
     from weather_bureau_light.model import Forecast
 
     assert Forecast(site=None, days=[], issued=None).age_text == "an unknown time ago"
+
+
+# --- Elapsed hours --------------------------------------------------------------
+
+
+def _day_forecast(now: datetime) -> model.Forecast:
+    """A full 48 hours of fixture data, read at a given moment."""
+    return model.build(
+        site=SITE,
+        percentiles=covjson.parse_collection(build_percentile_doc()),
+        percentile_resolution=parameters.resolve(PERCENTILE_PARAMS, PERCENTILE_FIELDS),
+        tz=UK,
+        now=now,
+    )
+
+
+def test_the_current_hour_is_still_shown_partway_through_it():
+    """At 17:49 the 17:00 row describes the hour being lived through."""
+    forecast = _day_forecast(datetime(2026, 8, 15, 17, 49, tzinfo=UK))
+    today = forecast.days[0]
+    assert today.date == date(2026, 8, 15)
+    assert today.timesteps[0].time.hour == 17
+
+
+def test_hours_already_past_are_dropped():
+    forecast = _day_forecast(datetime(2026, 8, 15, 17, 49, tzinfo=UK))
+    hours = [t.time.hour for t in forecast.days[0].timesteps]
+    assert 16 not in hours and 9 not in hours
+    assert hours == sorted(hours)
+
+
+def test_the_hour_drops_off_the_moment_the_clock_turns():
+    forecast = _day_forecast(datetime(2026, 8, 15, 18, 0, tzinfo=UK))
+    assert forecast.days[0].timesteps[0].time.hour == 18
+
+
+def test_later_days_keep_all_their_hours():
+    """Only today has hours behind it; tomorrow must not be trimmed."""
+    late = _day_forecast(datetime(2026, 8, 15, 22, 0, tzinfo=UK))
+    early = _day_forecast(datetime(2026, 8, 15, 4, 0, tzinfo=UK))
+    assert len(late.days[1].timesteps) == len(early.days[1].timesteps)
+
+
+def test_elapsed_hours_do_not_move_the_day_high_and_low():
+    """The afternoon's peak still belongs to today after the afternoon has gone."""
+    morning = _day_forecast(datetime(2026, 8, 15, 4, 0, tzinfo=UK))
+    evening = _day_forecast(datetime(2026, 8, 15, 21, 0, tzinfo=UK))
+    assert evening.days[0].max_temp == morning.days[0].max_temp
+    assert evening.days[0].min_temp == morning.days[0].min_temp
+
+
+def test_elapsed_hours_do_not_change_the_day_tab_symbol():
+    morning = _day_forecast(datetime(2026, 8, 15, 4, 0, tzinfo=UK))
+    evening = _day_forecast(datetime(2026, 8, 15, 21, 0, tzinfo=UK))
+    assert evening.days[0].symbol.label == morning.days[0].symbol.label
+
+
+def test_a_wholly_elapsed_day_is_dropped_rather_than_shown_empty():
+    """Reachable when the data being served is old enough to have run out."""
+    forecast = _day_forecast(datetime(2026, 8, 16, 6, 0, tzinfo=UK))
+    assert forecast.days[0].date == date(2026, 8, 16)
+    assert all(d.timesteps for d in forecast.days)
+
+
+def test_defaults_to_the_real_clock_when_no_moment_is_given(monkeypatch):
+    """The application does not pass one; the seam exists for these tests."""
+    monkeypatch.setattr(
+        model, "_now", lambda tz: datetime(2026, 8, 15, 17, 49, tzinfo=UK)
+    )
+    forecast = model.build(
+        site=SITE,
+        percentiles=covjson.parse_collection(build_percentile_doc()),
+        percentile_resolution=parameters.resolve(PERCENTILE_PARAMS, PERCENTILE_FIELDS),
+        tz=UK,
+    )
+    assert forecast.days[0].timesteps[0].time.hour == 17

@@ -135,8 +135,17 @@ class Day:
 
     @property
     def symbol(self) -> symbols.Symbol:
-        """Representative symbol: whatever is forecast around the middle of the day."""
-        daytime = [t for t in self.timesteps if t.is_daylight] or self.timesteps
+        """Representative symbol: whatever is forecast around the middle of the day.
+
+        Taken from every hour the day has, not just the ones still on the table, so
+        the tab keeps describing the day as a whole once the morning has passed.
+        """
+        steps = [
+            t
+            for t in (self.all_timesteps or self.timesteps)
+            if t.median("weather_code") is not None
+        ]
+        daytime = [t for t in steps if t.is_daylight] or steps
         if not daytime:
             return symbols.UNKNOWN
         midday = min(daytime, key=lambda t: abs(t.time.hour - 13))
@@ -311,6 +320,24 @@ def _half_spacing(grid: list[datetime], moment: datetime) -> float:
     return min(gaps) / 2 if gaps else 3600.0
 
 
+def _now(tz: ZoneInfo) -> datetime:
+    """The current local time. A seam, so tests can place themselves in the day."""
+    return datetime.now(tz)
+
+
+def _drop_elapsed_hours(day: Day, cutoff: datetime) -> None:
+    """Hide hours that have already been and gone.
+
+    A timestep labelled 17:00 describes the hour that starts at 17:00, so it stays on
+    the table until 18:00. The cutoff is therefore the top of the current hour, not the
+    current time: at 17:49 the 17:00 column is still the one being lived through.
+
+    Only the table is trimmed. The day's high and low come from all_timesteps, so this
+    afternoon's peak still shows on the day tab after the hour that reached it.
+    """
+    day.timesteps = [t for t in day.timesteps if t.time >= cutoff]
+
+
 def _drop_unreported_hours(day: Day) -> None:
     """Hide the hours the forecast has stopped reporting in full.
 
@@ -338,6 +365,7 @@ def build(
     tz: ZoneInfo | None = None,
     issued: datetime | None = None,
     stale: bool = False,
+    now: datetime | None = None,
     max_days: int = MAX_DAYS,
 ) -> Forecast:
     """Merge the coverages into days of timesteps, in local time."""
@@ -371,11 +399,18 @@ def build(
             Timestep(time=local, values=by_time[moment], is_daylight=daylight)
         )
 
+    cutoff = (now or _now(tz)).astimezone(tz).replace(minute=0, second=0, microsecond=0)
     for day in days.values():
         _drop_unreported_hours(day)
+        _drop_elapsed_hours(day, cutoff)
+
+    # A day whose hours have all elapsed is dropped rather than shown empty, which
+    # happens to today once its last timestep passes, and to any day the forecast
+    # still covers when the data being served is old.
+    remaining = [days[key] for key in sorted(days) if days[key].timesteps]
 
     # Truncated from the far end, so the strip always starts at today.
-    ordered = [days[key] for key in sorted(days)][:max_days]
+    ordered = remaining[:max_days]
 
     return Forecast(
         site=site,
