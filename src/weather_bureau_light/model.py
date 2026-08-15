@@ -156,6 +156,9 @@ class Forecast:
     site: Site
     days: list[Day]
     issued: datetime | None = None
+    """When the data was retrieved from the API, not when the page was rendered."""
+    stale: bool = False
+    """True when the live fetch failed and this came from the cache regardless."""
     missing_fields: list[str] = field(default_factory=list)
 
     def day(self, iso: str | None) -> Day | None:
@@ -164,6 +167,25 @@ class Forecast:
         if iso is None:
             return self.days[0]
         return next((d for d in self.days if d.iso == iso), self.days[0])
+
+    @property
+    def age_text(self) -> str:
+        """How old the data is, in round terms, for the staleness notice."""
+        if self.issued is None:
+            return "an unknown time ago"
+        seconds = (datetime.now(self.issued.tzinfo) - self.issued).total_seconds()
+        if seconds < 90:
+            return "just now"
+        # Change unit at the boundary itself, so an hour old reads as "1 hour ago"
+        # rather than "60 minutes ago". Days are held back to 36 hours, where
+        # "yesterday's forecast" starts being the more useful thing to say.
+        if seconds < 3600:
+            count, unit = round(seconds / 60), "minute"
+        elif seconds < 129600:
+            count, unit = round(seconds / 3600), "hour"
+        else:
+            count, unit = round(seconds / 86400), "day"
+        return f"{count} {unit}{'s' if count != 1 else ''} ago"
 
 
 def _extract(
@@ -315,6 +337,7 @@ def build(
     probability_resolution: Resolution | None = None,
     tz: ZoneInfo | None = None,
     issued: datetime | None = None,
+    stale: bool = False,
     max_days: int = MAX_DAYS,
 ) -> Forecast:
     """Merge the coverages into days of timesteps, in local time."""
@@ -358,5 +381,6 @@ def build(
         site=site,
         days=ordered,
         issued=issued,
+        stale=stale,
         missing_fields=missing,
     )

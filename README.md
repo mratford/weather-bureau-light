@@ -49,6 +49,22 @@ WBL_DEFAULT_SITE=Chelmsford
 You can also use a spot-site id, which is the Met Office's own identifier for one of the fixed points
 it forecasts for.
 
+### When the API is unreachable
+
+Rather than show an error page, the forecast falls back to the last data it cached, since
+a forecast a few hours old still beats nothing. The page says so when that happens, with a
+notice naming the time the data was actually issued and how long ago that was — an old
+forecast that looks current is worse than no forecast at all.
+
+For an instance left running unattended, `/healthz` reports the same thing in JSON: `200`
+while the API is answering, `503` once a fetch has failed, so `curl -f` or any uptime
+monitor catches it. It reports only what earlier requests recorded, so polling it does not
+spend anything from the daily call allowance.
+
+```sh
+curl -sf http://127.0.0.1:5000/healthz || echo "forecast data is going stale"
+```
+
 ## Development notes 
 ### Notes on the API
 

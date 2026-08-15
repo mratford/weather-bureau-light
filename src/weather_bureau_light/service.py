@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
 from . import covjson, model, parameters
 from .config import (
@@ -133,31 +132,35 @@ class ForecastService:
         wanted = resolution.all_names()
         # Ask only for the parameters the table shows: the full response is ~1 MB per
         # collection, and most of the 77 parameters are never rendered.
-        doc = self.client.forecast(collection_id, site.id, wanted or None)
-        coverages = covjson.parse_collection(doc)
+        fetched = self.client.forecast(collection_id, site.id, wanted or None)
+        coverages = covjson.parse_collection(fetched.payload)
 
         if resolution.missing and coverages.parameter_names:
             retry = parameters.resolve(coverages.parameter_names, specs)
             if len(retry.missing) < len(resolution.missing):
                 log.info("%s: re-resolved parameters from the data response", collection_id)
                 resolution = self._resolutions[collection_id] = retry
-        return coverages, resolution
+        return coverages, resolution, fetched
 
     def forecast(self, site: Site) -> model.Forecast:
-        percentiles, percentile_resolution = self._load(
+        percentiles, percentile_resolution, percentile_fetch = self._load(
             PERCENTILES_COLLECTION, site, PERCENTILE_FIELDS
         )
+        fetches = [percentile_fetch]
 
         probabilities = None
         probability_resolution = None
         try:
-            probabilities, probability_resolution = self._load(
+            probabilities, probability_resolution, probability_fetch = self._load(
                 PROBABILITIES_COLLECTION, site, PROBABILITY_FIELDS
             )
+            fetches.append(probability_fetch)
         except (DataHubError, covjson.CovJsonError) as exc:
             # The chance-of-precipitation row is worth losing rather than the whole page.
             log.warning("probabilities unavailable, precipitation row will be blank: %s", exc)
 
+        # Report the oldest of the two collections rather than an average or the newest,
+        # so the page never claims to be fresher than its stalest ingredient.
         return model.build(
             site=site,
             percentiles=percentiles,
@@ -165,5 +168,6 @@ class ForecastService:
             probabilities=probabilities,
             probability_resolution=probability_resolution,
             tz=UK_TZ,
-            issued=datetime.now(timezone.utc).astimezone(UK_TZ),
+            issued=min(f.retrieved_at for f in fetches),
+            stale=any(f.stale for f in fetches),
         )
