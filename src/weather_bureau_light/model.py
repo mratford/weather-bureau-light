@@ -115,17 +115,22 @@ class Day:
     timesteps: list[Timestep] = field(default_factory=list)
     sunrise: datetime | None = None
     sunset: datetime | None = None
+    #: Every timestep the API published for this day, including any the table drops.
+    #: The day's high and low come from here, so hiding a column cannot move them.
+    all_timesteps: list[Timestep] = field(default_factory=list)
+
+    def _temperatures(self) -> list[float]:
+        steps = self.all_timesteps or self.timesteps
+        return [v for v in (t.median("temperature") for t in steps) if v is not None]
 
     @property
     def max_temp(self) -> int | None:
-        values = [t.median("temperature") for t in self.timesteps]
-        values = [v for v in values if v is not None]
+        values = self._temperatures()
         return int(round(max(values))) if values else None
 
     @property
     def min_temp(self) -> int | None:
-        values = [t.median("temperature") for t in self.timesteps]
-        values = [v for v in values if v is not None]
+        values = self._temperatures()
         return int(round(min(values))) if values else None
 
     @property
@@ -284,6 +289,24 @@ def _half_spacing(grid: list[datetime], moment: datetime) -> float:
     return min(gaps) / 2 if gaps else 3600.0
 
 
+def _drop_unreported_hours(day: Day) -> None:
+    """Hide the hours the forecast has stopped reporting in full.
+
+    Past about five days the weather symbol goes three-hourly while temperature stays
+    hourly, so a day in the changeover shows a column every hour but a symbol only
+    every third one. Those in-between hours are dropped, which is what a wholly
+    three-hourly day already looks like.
+
+    A day with no symbols at all is left alone: that is the parameter missing rather
+    than the reporting thinning out, and an empty table would be worse than a
+    symbol-less one.
+    """
+    day.all_timesteps = list(day.timesteps)
+    reported = [t for t in day.timesteps if t.median("weather_code") is not None]
+    if reported:
+        day.timesteps = reported
+
+
 def build(
     site: Site,
     percentiles: CoverageSet,
@@ -324,6 +347,9 @@ def build(
         day.timesteps.append(
             Timestep(time=local, values=by_time[moment], is_daylight=daylight)
         )
+
+    for day in days.values():
+        _drop_unreported_hours(day)
 
     # Truncated from the far end, so the strip always starts at today.
     ordered = [days[key] for key in sorted(days)][:max_days]

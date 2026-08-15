@@ -72,6 +72,55 @@ def test_day_cap_is_overridable():
     assert len(_long_forecast(14 * 24, max_days=3).days) == 3
 
 
+def _doc(*coverages) -> dict:
+    return {"type": "CoverageCollection", "domainType": "PointSeries", "coverages": list(coverages)}
+
+
+def _mixed_resolution_forecast(with_symbols: bool = True) -> model.Forecast:
+    """Temperature every hour, weather symbol only every third - the shape the API
+    takes in the changeover around day five."""
+    from bpf_fixtures import _coverage, _times
+
+    coverages = [_coverage("airTemperature1p5m", "K", _times(12, 1))]
+    if with_symbols:
+        coverages.append(_coverage("weatherCodePt03h", "1", _times(4, 3)))
+
+    names = [c["id"] for c in coverages]
+    return model.build(
+        site=SITE,
+        percentiles=covjson.parse_collection(_doc(*coverages)),
+        percentile_resolution=parameters.resolve(names, PERCENTILE_FIELDS),
+        tz=UK,
+    )
+
+
+def test_hours_without_a_weather_symbol_are_dropped():
+    forecast = _mixed_resolution_forecast()
+    steps = [s for d in forecast.days for s in d.timesteps]
+    assert steps, "everything was dropped"
+    assert all(s.median("weather_code") is not None for s in steps)
+    # Twelve hourly columns, a symbol on every third: four survive.
+    assert len(steps) == 4
+
+
+def test_dropped_hours_still_count_towards_the_day_high_and_low():
+    """Hiding a column must not move the figures on the day tab."""
+    forecast = _mixed_resolution_forecast()
+    day = forecast.days[0]
+    shown = [t.median("temperature") for t in day.timesteps]
+    hidden = [t.median("temperature") for t in day.all_timesteps]
+    assert len(hidden) > len(shown)
+    assert day.max_temp == int(round(max(v for v in hidden if v is not None)))
+    assert day.min_temp == int(round(min(v for v in hidden if v is not None)))
+
+
+def test_a_day_with_no_symbols_at_all_keeps_its_hours():
+    """A missing parameter is not the same as the reporting thinning out; an empty
+    table would be worse than a table with no symbol row."""
+    forecast = _mixed_resolution_forecast(with_symbols=False)
+    assert sum(len(d.timesteps) for d in forecast.days) == 12
+
+
 def test_temperature_converted_to_celsius(forecast):
     temps = [
         s.median("temperature") for d in forecast.days for s in d.timesteps

@@ -80,7 +80,8 @@ Things worth knowing, all confirmed against the live service by `scripts/discove
 - Some parameters are published hourly (`Pt01h`) for the first days and three-hourly
   (`Pt03h`) after, so both are fetched and the finer one wins. Temperature runs to about
   fourteen days but weather symbols stop at about day eight, which is part of why the
-  page shows only the first seven (`model.MAX_DAYS`).
+  page shows only the first seven (`model.MAX_DAYS`). The symbol thins out first, so on
+  a day in the changeover the hours without one are dropped rather than shown blank.
 
 ### Development
 
