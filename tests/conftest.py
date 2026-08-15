@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import httpx
 import pytest
+
+from weather_bureau_light.config import UK_TZ
+from weather_bureau_light.datahub import Fetched
 
 from bpf_fixtures import (
     COLLECTIONS,
@@ -20,11 +25,28 @@ from bpf_fixtures import (
 class FakeClient:
     """Stands in for DataHubClient, recording calls so caching can be asserted."""
 
+    base_url = "https://example.invalid/fake/2.0.0"
+
     def __init__(self) -> None:
         self.calls: list[str] = []
+        # Set by tests that need the app to behave as though the API were down.
+        self.stale = False
+        self.retrieved_at: datetime | None = None
+        self.last_success_at: datetime | None = datetime.now(UK_TZ)
+        self.last_failure_at: datetime | None = None
+        self.last_failure: str | None = None
+
+    def serving_stale(self, age_hours: float, message: str = "HTTP 403") -> None:
+        """Behave as the real client does when a fetch fails but a cache exists."""
+        now = datetime.now(UK_TZ)
+        self.stale = True
+        self.retrieved_at = now - timedelta(hours=age_hours)
+        self.last_failure_at = now
+        self.last_failure = message
+        self.last_success_at = self.retrieved_at
 
     def ensure_base_url(self) -> str:
-        return "https://example.invalid/fake/2.0.0"
+        return self.base_url
 
     def collections(self) -> dict:
         self.calls.append("collections")
@@ -40,11 +62,17 @@ class FakeClient:
         self.calls.append(f"locations:{collection_id}")
         return LOCATIONS
 
-    def forecast(self, collection_id: str, location_id: str, parameters=None) -> dict:
+    def forecast(self, collection_id: str, location_id: str, parameters=None) -> Fetched:
         self.calls.append(f"forecast:{collection_id}:{location_id}")
         if "probabilities" in collection_id:
-            return build_probability_doc(parameters)
-        return build_percentile_doc(parameters)
+            payload = build_probability_doc(parameters)
+        else:
+            payload = build_percentile_doc(parameters)
+        return Fetched(
+            payload,
+            retrieved_at=self.retrieved_at or datetime.now(UK_TZ),
+            stale=self.stale,
+        )
 
     def close(self) -> None:
         pass

@@ -331,3 +331,42 @@ def test_edge_timesteps_without_percentile_data_are_dropped():
     assert all(
         s.median("temperature") is not None for d in forecast.days for s in d.timesteps
     )
+
+
+# --- Age wording ----------------------------------------------------------------
+
+
+def _aged(hours: float):
+    """A Forecast whose data was retrieved a given number of hours ago."""
+    from datetime import datetime, timedelta
+
+    from weather_bureau_light.config import UK_TZ
+    from weather_bureau_light.model import Forecast
+
+    issued = datetime.now(UK_TZ) - timedelta(hours=hours)
+    return Forecast(site=None, days=[], issued=issued, stale=True)
+
+
+def test_age_text_reads_in_whole_units():
+    assert _aged(0).age_text == "just now"
+    assert _aged(1 / 60 * 20).age_text == "20 minutes ago"
+    assert _aged(3).age_text == "3 hours ago"
+    assert _aged(50).age_text == "2 days ago"
+
+
+def test_age_text_counts_in_hours_past_a_day():
+    """Days only take over at 36 hours: 'yesterday afternoon' is still worth saying
+    precisely when someone is deciding whether to trust the numbers."""
+    assert _aged(30).age_text == "30 hours ago"
+
+
+def test_age_text_is_singular_where_it_should_be():
+    """Anything under 90 seconds is 'just now', so an hour is the first singular."""
+    assert _aged(1).age_text == "1 hour ago"
+    assert _aged(1 / 60).age_text == "just now"
+
+
+def test_age_text_survives_an_unknown_issue_time():
+    from weather_bureau_light.model import Forecast
+
+    assert Forecast(site=None, days=[], issued=None).age_text == "an unknown time ago"

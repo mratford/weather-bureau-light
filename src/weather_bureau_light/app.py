@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from flask import Flask, abort, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
 from .config import UK_TZ, Config, ConfigError
 from .datahub import DataHubError
@@ -13,6 +13,10 @@ from .season import palette_for
 from .service import ForecastService
 
 log = logging.getLogger(__name__)
+
+
+def _stamp(moment: datetime | None) -> str | None:
+    return None if moment is None else moment.isoformat(timespec="seconds")
 
 
 def create_app(config: Config | None = None, service: ForecastService | None = None) -> Flask:
@@ -57,6 +61,29 @@ def create_app(config: Config | None = None, service: ForecastService | None = N
         data = service.forecast(site)
         selected = data.day(request.args.get("date"))
         return render_template("forecast.html", forecast=data, day=selected, site=site)
+
+    @app.route("/healthz")
+    def healthz():
+        """Whether the API is answering, for monitoring an unattended instance.
+
+        Reports only what previous requests recorded: calling this must never spend a
+        call from the daily quota, however often it is polled. Nothing here identifies
+        the API key, since WBL_HOST may put this on the local network.
+        """
+        client = svc().client
+        healthy = client.last_failure_at is None or (
+            client.last_success_at is not None
+            and client.last_success_at >= client.last_failure_at
+        )
+        body = {
+            "status": "ok" if healthy else "degraded",
+            "base_url": client.base_url,
+            "last_success": _stamp(client.last_success_at),
+            "last_failure": _stamp(client.last_failure_at),
+            "last_failure_message": None if healthy else client.last_failure,
+            "sites_loaded": len(svc().catalogue),
+        }
+        return jsonify(body), (200 if healthy else 503)
 
     @app.errorhandler(DataHubError)
     def datahub_error(exc: DataHubError):

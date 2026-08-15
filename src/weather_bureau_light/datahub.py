@@ -12,12 +12,14 @@ import hashlib
 import json
 import logging
 import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
 
-from .config import BASE_URL_V1, BASE_URL_V2, DEFAULT_INSTANCE, Config
+from .config import BASE_URL_V1, BASE_URL_V2, DEFAULT_INSTANCE, UK_TZ, Config
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +30,34 @@ class DataHubError(RuntimeError):
 
 class AuthError(DataHubError):
     """The key was rejected, or is not subscribed to this product."""
+
+
+def _local(stamp: float) -> datetime:
+    """An epoch timestamp as a UK-local aware datetime, ready to render."""
+    return datetime.fromtimestamp(stamp, timezone.utc).astimezone(UK_TZ)
+
+
+@dataclass(frozen=True)
+class CacheEntry:
+    """A cached payload and the moment it was written."""
+
+    payload: Any
+    stored_at: float
+
+
+@dataclass(frozen=True)
+class Fetched:
+    """A payload and where it came from.
+
+    The age of the data is not recoverable once a payload has been unwrapped from the
+    cache, so it travels with it. Without this a page served from a stale fallback is
+    indistinguishable from a live one, which is exactly how an expired API key managed
+    to look like a working forecast for hours.
+    """
+
+    payload: Any
+    retrieved_at: datetime
+    stale: bool = False
 
 
 class DiskCache:
@@ -41,6 +71,13 @@ class DiskCache:
     def get(
         self, key: str, ttl: int, hour_aligned: bool = False, floor: int = 300
     ) -> Any | None:
+        """The cached payload, or None. Callers that need its age use get_entry."""
+        entry = self.get_entry(key, ttl, hour_aligned=hour_aligned, floor=floor)
+        return None if entry is None else entry.payload
+
+    def get_entry(
+        self, key: str, ttl: int, hour_aligned: bool = False, floor: int = 300
+    ) -> CacheEntry | None:
         path = self._path(key)
         if not path.is_file():
             return None
@@ -71,7 +108,7 @@ class DiskCache:
             return None
 
         log.info("cache hit (%.0fs old): %s", age, key)
-        return envelope["payload"]
+        return CacheEntry(payload=envelope["payload"], stored_at=stored_at)
 
     def set(self, key: str, value: Any) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -97,6 +134,11 @@ class DataHubClient:
         )
         self._base_url_checked = False
         self._instances: dict[str, str] = {}
+        # Recorded as requests happen so /healthz can report on the API without
+        # spending a call of its own to ask.
+        self.last_success_at: datetime | None = None
+        self.last_failure_at: datetime | None = None
+        self.last_failure: str | None = None
 
     def close(self) -> None:
         self._client.close()
@@ -149,26 +191,41 @@ class DataHubClient:
         ttl: int | None = None,
         hour_aligned: bool = False,
     ) -> Any:
+        """The payload alone. Callers that render the data's age use fetch()."""
+        return self.fetch(path, params, ttl=ttl, hour_aligned=hour_aligned).payload
+
+    def fetch(
+        self,
+        path: str,
+        params: dict[str, str] | None = None,
+        ttl: int | None = None,
+        hour_aligned: bool = False,
+    ) -> Fetched:
         ttl = self.config.cache_ttl if ttl is None else ttl
         cache_key = f"{self.base_url}{path}?{sorted((params or {}).items())}"
 
-        cached = self.cache.get(cache_key, ttl, hour_aligned=hour_aligned)
+        cached = self.cache.get_entry(cache_key, ttl, hour_aligned=hour_aligned)
         if cached is not None:
-            return cached
+            return Fetched(cached.payload, retrieved_at=_local(cached.stored_at))
 
         try:
             payload = self._request(path, params)
-        except DataHubError:
+        except DataHubError as exc:
+            self.last_failure_at = _local(time.time())
+            self.last_failure = str(exc)
             # Prefer stale data over an error page: a forecast a few hours old is far
             # more useful than nothing when the quota is spent or the API is down.
-            stale = self.cache.get(cache_key, ttl=10**9)
+            # The page says so, so an outage cannot masquerade as a fresh forecast.
+            stale = self.cache.get_entry(cache_key, ttl=10**9)
             if stale is not None:
                 log.warning("serving stale cache for %s", path)
-                return stale
+                return Fetched(stale.payload, retrieved_at=_local(stale.stored_at), stale=True)
             raise
 
+        now = time.time()
+        self.last_success_at = _local(now)
         self.cache.set(cache_key, payload)
-        return payload
+        return Fetched(payload, retrieved_at=_local(now))
 
     def ensure_base_url(self) -> str:
         """Pick a service version this key is subscribed to.
@@ -222,12 +279,14 @@ class DataHubClient:
 
     def forecast(
         self, collection_id: str, location_id: str, parameters: list[str] | None = None
-    ) -> dict[str, Any]:
+    ) -> Fetched:
+        """The forecast document, wrapped with its age: this is the one response the
+        page renders, so it is the one whose freshness the reader needs told."""
         instance = self.instance(collection_id)
         params: dict[str, str] = {}
         if parameters:
             params["parameter-name"] = ",".join(parameters)
-        return self.get(
+        return self.fetch(
             f"/collections/{collection_id}/instances/{instance}/locations/{location_id}",
             params,
             hour_aligned=True,

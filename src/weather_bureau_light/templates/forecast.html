@@ -11,6 +11,15 @@
 {% block content %}
 {{ sprite.defs() }}
 
+{# The stale fallback in datahub.py keeps the page useful during an outage, but an
+   old forecast that looks current is worse than none: say so, in the page itself. #}
+{% if forecast.stale %}
+<p class="warning" role="status">
+  Live update failed &mdash; this forecast was issued
+  {% if forecast.issued %}at {{ forecast.issued.strftime('%H:%M') }}, {% endif %}{{ forecast.age_text }}.
+</p>
+{% endif %}
+
 <h1 class="place">{{ site.name }}{% if site.region %} <span class="region">({{ site.region }})</span>{% endif %}</h1>
 
 {% if forecast.issued %}

@@ -267,3 +267,68 @@ def test_scroll_containers_reserve_a_scrollbar_gutter(client):
     for block in (".table-scroll", ".day-tabs"):
         start = css.index(block)
         assert "padding-bottom: var(--scrollbar-gutter)" in css[start : start + 400], block
+
+
+# --- Staleness and health -------------------------------------------------------
+
+
+def test_no_staleness_banner_when_the_data_is_fresh(client):
+    assert "Live update failed" not in text(client.get("/forecast/00350584"))
+
+
+def test_staleness_banner_names_the_age_when_the_api_is_down(client, fake_client):
+    """The whole point: a cached page must not look like a live one."""
+    fake_client.serving_stale(age_hours=3)
+    body = text(client.get("/forecast/00350584"))
+    assert "Live update failed" in body
+    assert "3 hours ago" in body
+    # The forecast itself still renders; stale data beats an error page.
+    assert "forecast-table" in body
+
+
+def test_stale_page_reports_the_data_time_not_the_clock(client, fake_client):
+    """The bug this change exists to fix: 'Updated:' used to show the render time."""
+    from datetime import datetime, timedelta
+
+    from weather_bureau_light.config import UK_TZ
+
+    fake_client.serving_stale(age_hours=3)
+    body = text(client.get("/forecast/00350584"))
+    issued = (datetime.now(UK_TZ) - timedelta(hours=3)).strftime("%H:%M")
+    assert f"Updated: {issued}" in body
+    assert f"Updated: {datetime.now(UK_TZ).strftime('%H:%M')}" not in body
+
+
+def test_healthz_is_ok_when_the_api_is_answering(client):
+    response = client.get("/healthz")
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["status"] == "ok"
+    assert body["last_failure"] is None
+    assert body["sites_loaded"] > 0
+
+
+def test_healthz_reports_degraded_with_503_after_a_failure(client, fake_client):
+    """503 so `curl -f` or an uptime monitor catches it without parsing JSON."""
+    fake_client.serving_stale(age_hours=3, message="HTTP 403 from …")
+    response = client.get("/healthz")
+    assert response.status_code == 503
+    body = response.get_json()
+    assert body["status"] == "degraded"
+    assert "403" in body["last_failure_message"]
+
+
+def test_healthz_never_leaks_the_api_key(client, fake_client, config):
+    """It is reachable on the LAN whenever WBL_HOST is 0.0.0.0."""
+    fake_client.serving_stale(age_hours=1, message="denied")
+    for response in (client.get("/healthz"), client.get("/healthz")):
+        assert config.api_key not in text(response)
+
+
+def test_healthz_spends_no_api_calls(client, fake_client):
+    """Polling a health endpoint must not eat the daily quota."""
+    client.get("/forecast/00350584")
+    before = len(fake_client.calls)
+    for _ in range(5):
+        client.get("/healthz")
+    assert fake_client.calls[before:] == []

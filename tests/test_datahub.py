@@ -9,7 +9,13 @@ import httpx
 import pytest
 
 from weather_bureau_light.config import BASE_URL_V1, BASE_URL_V2
-from weather_bureau_light.datahub import AuthError, DataHubClient, DataHubError, DiskCache
+from weather_bureau_light.datahub import (
+    AuthError,
+    DataHubClient,
+    DataHubError,
+    DiskCache,
+    _local,
+)
 
 
 def make_client(config, handler) -> DataHubClient:
@@ -276,3 +282,82 @@ def test_forecast_refetches_after_the_hour_turns(config, monkeypatch):
 
     forecasts = [u for u in calls if "/locations/" in u]
     assert len(forecasts) == 2, "a new hour should refetch"
+
+
+# --- Provenance -----------------------------------------------------------------
+#
+# The stale fallback above keeps the page useful during an outage. These cover the
+# other half of that bargain: the caller must be able to tell that it happened.
+
+
+def test_fresh_fetch_is_not_marked_stale(config):
+    client = make_client(config, lambda r: httpx.Response(200, json={"good": True}))
+    fetched = client.fetch("/x")
+    assert fetched.payload == {"good": True}
+    assert fetched.stale is False
+
+
+def test_stale_fallback_is_marked_and_keeps_the_original_time(config, monkeypatch):
+    """The age reported must be the data's, not the moment the retry failed."""
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    state = {"fail": False}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if state["fail"]:
+            return httpx.Response(500)
+        return httpx.Response(200, json={"good": True})
+
+    client = make_client(config, handler)
+    monkeypatch.setattr(time, "time", lambda: at(9.0))
+    client.fetch("/x")
+
+    state["fail"] = True
+    monkeypatch.setattr(time, "time", lambda: at(12.0))
+    fetched = client.fetch("/x", ttl=0)
+
+    assert fetched.payload == {"good": True}
+    assert fetched.stale is True
+    assert fetched.retrieved_at.hour == _local(at(9.0)).hour, "reported the retry, not the data"
+
+
+def test_cache_hit_reports_when_the_data_was_stored(config, monkeypatch):
+    """A cached page is not stale, but it is still older than now."""
+    client = make_client(config, lambda r: httpx.Response(200, json={"good": True}))
+    monkeypatch.setattr(time, "time", lambda: at(9.0))
+    client.fetch("/x")
+    monkeypatch.setattr(time, "time", lambda: at(9.2))
+    fetched = client.fetch("/x", ttl=10**9)
+    assert fetched.stale is False
+    assert fetched.retrieved_at == _local(at(9.0))
+
+
+def test_health_state_records_success(config):
+    client = make_client(config, lambda r: httpx.Response(200, json={}))
+    client.fetch("/x")
+    assert client.last_success_at is not None
+    assert client.last_failure_at is None
+
+
+def test_health_state_records_failure(config, monkeypatch):
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    client = make_client(config, lambda r: httpx.Response(403))
+    with pytest.raises(AuthError):
+        client.fetch("/x")
+    assert client.last_failure_at is not None
+    assert "403" in client.last_failure
+
+
+def test_health_state_records_failure_even_when_stale_data_rescues_the_page(config, monkeypatch):
+    """The page recovers, but the operator still needs to know the API refused."""
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    state = {"fail": False}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403) if state["fail"] else httpx.Response(200, json={"good": True})
+
+    client = make_client(config, handler)
+    client.fetch("/x")
+    state["fail"] = True
+    assert client.fetch("/x", ttl=0).stale is True
+    assert client.last_failure_at is not None
+    assert client.last_success_at < client.last_failure_at
