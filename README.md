@@ -1,45 +1,49 @@
-# Weather Bureau Light
+**Warning** This is completely AI generated, with all that that implies.
 
-A local rebuild of the **old Met Office forecast page** — the dense one, where a whole
-day of weather sits in a single table you can read at a glance — driven by the Met
-Office DataHub **Blended Probabilistic Forecast** (BPF) API.
+# weather-bureau-light
 
-The Met Office is retiring the `?new-design=false` escape hatch on
-`weather.metoffice.gov.uk`. This keeps the layout.
+A locally hosted website recreating the old Met Office design.
+
+The new Met Office website is very pretty but light text on a dark background
+is difficult to read for some of us with astigmatism and there's less
+information on a single page. This repo creates a website that uses the Met 
+Office API to display dense forecast data on a light background. 
+
+There is a bonus "likely range" row which is the 10th–90th percentile spread
+for the temperature, and extra days.
 
 ![The forecast page for Brentwood: a scrollable strip of day tabs, each with a weather symbol, max and min temperature and sunrise and sunset times, above an hourly table whose rows are weather symbol, chance of precipitation, temperature, feels like, likely range, wind speed and direction, wind gust, visibility, humidity, UV index and pressure.](docs/screenshot.jpg)
 
 ## Setup
 
-You need a [Weather DataHub](https://datahub.metoffice.gov.uk/) account subscribed to
-the **Site Specific — Blended Probabilistic Forecast** product.
+Open a [Met Office data](https://datahub.metoffice.gov.uk/) account and subscribe to
+the Site-Specific Blended Probabilistic Forecast API. This is free for up
+to 55 calls per day, which should be fine for personal use.
 
+[Install uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+Create a `.env` file from the example
 ```sh
-cp .env.example .env       # then paste your key into METOFFICE_API_KEY
+cp .env.example .env
+```
+and edit it to include your API key.
+
+Install the necessary Python packages with 
+```sh
 uv sync
-uv run weather-bureau-light
 ```
 
-Then open <http://127.0.0.1:5000/>.
+Then to run
+```sh
+uv run weather-bureau-light
+```
+and open <http://127.0.0.1:5000/>.
 
 The default location is Brentwood (Essex). Use the search box for anywhere else, or
 set `WBL_DEFAULT_SITE` to a spot-site id.
 
-## What it shows
-
-A day-tab strip (symbol, max/min, sunrise/sunset) above a table with one column per
-timestep — hourly for about five days, three-hourly to fourteen:
-
-Time · Weather · Chance of precipitation · Temperature · Feels like · **Likely range** ·
-Wind speed and direction · Wind gust · Visibility · Humidity · UV index · Pressure
-
-The "likely range" row is the 10th–90th percentile spread. It has no counterpart on the
-old Met Office page, but this API is percentile-based, so the uncertainty is free.
-
-Met Office conventions are kept: gusts at or above 29 mph in bold, visibility as
-VP/P/M/G/VG/E bands, UV in Low/Moderate/High/Very high/Extreme bands.
-
-## Notes on the API
+## Development notes 
+### Notes on the API
 
 Things worth knowing, all confirmed against the live service by `scripts/discover.py`:
 
@@ -70,7 +74,7 @@ Things worth knowing, all confirmed against the live service by `scripts/discove
   (`Pt03h`) after, so both are fetched and the finer one wins. Weather symbols stop at
   about day eight even though temperature runs to fourteen; those cells show a dash.
 
-## Development
+### Development
 
 ```sh
 uv run pytest                     # 154 tests, no network required
