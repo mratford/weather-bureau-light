@@ -48,24 +48,24 @@ body {
    than a fixed white: white on the summer yellow would be unreadable. Each pairing
    below clears 4.5:1 against its own background, bar text and button alike. */
 
-.season-autumn {                 /* deep golden brown */
-  --brand: #6b4a16; --brand-ink: #ffffff; --brand-edge: #8a6320;
+.season-autumn {                 /* deep golden brown, turning-leaf amber lettering */
+  --brand: #6b4a16; --brand-ink: #ffc14d; --brand-edge: #8a6320;
   --action: #c9962a; --action-hover: #d9a53a; --action-ink: #2b1e06;
 }
 
-.season-winter {                 /* icy blue */
-  --brand: #a9d3e8; --brand-ink: #0b2e3d; --brand-edge: #6ea8c4;
+.season-winter {                 /* icy blue, midnight sky lettering */
+  --brand: #a9d3e8; --brand-ink: #163b6b; --brand-edge: #6ea8c4;
   --action: #0e5273; --action-hover: #14648b; --action-ink: #ffffff;
 }
 
-.season-spring {                 /* verdant green */
-  --brand: #1f6b3a; --brand-ink: #ffffff; --brand-edge: #2f8b4f;
+.season-spring {                 /* verdant green, buttercup lettering */
+  --brand: #1f6b3a; --brand-ink: #f9d71c; --brand-edge: #2f8b4f;
   --action: #a7d96b; --action-hover: #b9e484; --action-ink: #102c18;
 }
 
-.season-summer {                 /* bright sunny yellow */
-  --brand: #f5c518; --brand-ink: #3a2c00; --brand-edge: #c69f10;
-  --action: #6b5200; --action-hover: #856500; --action-ink: #ffffff;
+.season-summer {                 /* bright sunny yellow, sunburnt red lettering */
+  --brand: #ffd60a; --brand-ink: #a13018; --brand-edge: #d4ac00;
+  --action: #a13018; --action-hover: #b83a1e; --action-ink: #ffffff;
 }
 
 /* ---- masthead ---- */
