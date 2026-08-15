@@ -15,6 +15,8 @@
   --error: #a4262c;
   --error-bg: #fdeaea;
   --row-label-w: 15rem;
+  /* Clearance for a horizontal overlay scrollbar sitting over the content. */
+  --scrollbar-gutter: 15px;
 }
 
 * { box-sizing: border-box; }
@@ -92,6 +94,9 @@ body {
 .day-tabs {
   display: flex; gap: 2px; overflow-x: auto; margin-bottom: 1px;
   scrollbar-width: thin;
+  /* Same overlay-scrollbar problem as the table: without this the bar covers the
+     sunrise and sunset times on the bottom line of each tab. */
+  padding-bottom: var(--scrollbar-gutter);
 }
 
 .day-tab {
@@ -116,7 +121,14 @@ body {
 
 /* ---- forecast table ---- */
 
-.table-scroll { overflow-x: auto; border: 1px solid var(--rule); }
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  /* Overlay scrollbars float above the content rather than displacing it, so without
+     a gutter the horizontal bar sits on top of the last row and hides the pressure
+     figures. The padding gives it somewhere harmless to land. */
+  padding-bottom: var(--scrollbar-gutter);
+}
 
 .forecast-table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
 

@@ -48,6 +48,22 @@
   {% endfor %}
 </nav>
 
+<script>
+  // Picking a day is a full page load, so the strip's horizontal scroll resets to the
+  // left and the day you just chose can end up off-screen. Bring it back into view.
+  // scrollLeft is set directly rather than using scrollIntoView, which would also
+  // scroll the page vertically and push the masthead out of sight.
+  (function () {
+    var selected = document.querySelector('.day-tab.is-selected');
+    if (!selected) return;
+    var strip = selected.parentElement;
+    if (strip.scrollWidth <= strip.clientWidth) return;  // They all fit; nothing to do.
+    var stripBox = strip.getBoundingClientRect();
+    var tabBox = selected.getBoundingClientRect();
+    strip.scrollLeft += (tabBox.left - stripBox.left) - (stripBox.width - tabBox.width) / 2;
+  })();
+</script>
+
 <div class="table-scroll">
 <table class="forecast-table">
   <caption class="visually-hidden">

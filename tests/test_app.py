@@ -147,3 +147,21 @@ def test_static_css_is_served(client):
     response = client.get("/static/metoffice.css")
     assert response.status_code == 200
     assert "forecast-table" in text(response)
+
+
+def test_selected_day_is_scrolled_into_view(client):
+    """The day strip scrolls horizontally and a page load resets it to the left,
+    which would leave a later day off-screen behind the tabs that do fit."""
+    body = text(client.get("/forecast/00350584?date=2026-08-16"))
+    assert "day-tab is-selected" in body
+    assert "scrollLeft" in body, "missing the script that reveals the selected day"
+
+
+def test_scroll_containers_reserve_a_scrollbar_gutter(client):
+    """Overlay scrollbars float over content, so both scrolling containers need
+    clearance or the bar covers the pressure row and the sunrise/sunset line."""
+    css = text(client.get("/static/metoffice.css"))
+    assert "--scrollbar-gutter" in css
+    for block in (".table-scroll", ".day-tabs"):
+        start = css.index(block)
+        assert "padding-bottom: var(--scrollbar-gutter)" in css[start : start + 400], block
