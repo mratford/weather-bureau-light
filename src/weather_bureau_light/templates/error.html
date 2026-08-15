@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Problem fetching the forecast{% endblock %}
+
+{% block content %}
+<h1 class="place">Something went wrong</h1>
+<div class="error-box">
+  <p>{{ message }}</p>
+</div>
+<p class="hint-block">
+  If this is an authentication problem, check <code>.env</code> contains a valid
+  <code>METOFFICE_API_KEY</code> subscribed to the Blended Probabilistic Forecast product.
+</p>
+{% endblock %}

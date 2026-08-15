@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% import "symbols.svg" as sprite with context %}
+
+{% block title %}{{ site.display_name }} weather forecast{% endblock %}
+
+{% macro cell(step, key, unit='') -%}
+  {%- set v = step.rounded(key) -%}
+  {%- if v is none %}<span class="na">&mdash;</span>{% else %}{{ v }}{{ unit }}{% endif -%}
+{%- endmacro %}
+
+{% block content %}
+{{ sprite.defs() }}
+
+<h1 class="place">{{ site.name }}{% if site.region %} <span class="region">({{ site.region }})</span>{% endif %}</h1>
+
+{% if forecast.issued %}
+<p class="issued">Updated: {{ forecast.issued.strftime('%H:%M') }} on {{ forecast.issued.strftime('%a %-d %b %Y') }}</p>
+{% endif %}
+
+{% if forecast.missing_fields %}
+<p class="warning">
+  Not available from the API for this site: {{ forecast.missing_fields|join(', ') }}.
+</p>
+{% endif %}
+
+{% if not forecast.days %}
+<p class="warning">No forecast data was returned for this site.</p>
+{% else %}
+
+<nav class="day-tabs" aria-label="Forecast day">
+  {% for d in forecast.days %}
+  <a class="day-tab{% if d.iso == day.iso %} is-selected{% endif %}"
+     href="{{ url_for('forecast', site_id=site.id, date=d.iso) }}">
+    <span class="day-name">{{ d.tab_label }}</span>
+    <span class="day-symbol">
+      {%- if d.symbol.known -%}{{ sprite.icon(d.symbol.sprite, d.symbol.night, d.symbol.label) }}
+      {%- else -%}<span class="na">&mdash;</span>{%- endif -%}
+    </span>
+    <span class="day-temps">
+      <span class="t-max">{{ d.max_temp if d.max_temp is not none else '—' }}&deg;</span>
+      <span class="t-min">{{ d.min_temp if d.min_temp is not none else '—' }}&deg;</span>
+    </span>
+    <span class="day-sun">
+      {% if d.sunrise %}&uarr; {{ d.sunrise.strftime('%H:%M') }}{% endif %}
+      {% if d.sunset %}&darr; {{ d.sunset.strftime('%H:%M') }}{% endif %}
+    </span>
+  </a>
+  {% endfor %}
+</nav>
+
+<div class="table-scroll">
+<table class="forecast-table">
+  <caption class="visually-hidden">
+    Detailed forecast for {{ site.display_name }} on {{ day.tab_label }}
+  </caption>
+
+  <tbody>
+    <tr class="row-time">
+      <th scope="row">Time</th>
+      {% for step in day.timesteps %}<td>{{ step.label }}</td>{% endfor %}
+    </tr>
+
+    <tr class="row-symbol">
+      <th scope="row">Weather</th>
+      {% for step in day.timesteps %}
+      <td>
+        {%- if step.symbol.known -%}
+        {{ sprite.icon(step.symbol.sprite, step.symbol.night, step.symbol.label) }}
+        {%- else -%}<span class="na">&mdash;</span>{%- endif -%}
+      </td>
+      {% endfor %}
+    </tr>
+
+    <tr class="row-precip">
+      <th scope="row">Chance of precipitation</th>
+      {% for step in day.timesteps %}<td>{{ cell(step, 'precipitation_probability', '%') }}</td>{% endfor %}
+    </tr>
+
+    <tr class="row-temp">
+      <th scope="row">Temperature</th>
+      {% for step in day.timesteps %}
+      {% set t = step.rounded('temperature') %}
+      <td><span class="temp-chip"{% if t is not none %} data-t="{{ t }}"{% endif %}>{{ cell(step, 'temperature', '°') }}</span></td>
+      {% endfor %}
+    </tr>
+
+    <tr class="row-feels">
+      <th scope="row">Feels like</th>
+      {% for step in day.timesteps %}<td>{{ cell(step, 'feels_like', '°') }}</td>{% endfor %}
+    </tr>
+
+    <tr class="row-range">
+      <th scope="row">Likely range <span class="hint">10th&ndash;90th percentile</span></th>
+      {% for step in day.timesteps %}
+      <td class="range-cell">{{ step.value('temperature').range_text('°') }}</td>
+      {% endfor %}
+    </tr>
+
+    <tr class="row-wind">
+      <th scope="row">Wind speed and direction</th>
+      {% for step in day.timesteps %}
+      {% set dir = step.median('wind_direction') %}
+      <td>
+        {% if dir is not none %}
+        <span class="wind-arrow" style="--dir: {{ dir }}deg" aria-hidden="true">&uarr;</span>
+        {% endif %}
+        <span class="wind-speed">{{ cell(step, 'wind_speed') }}</span>
+        {% if step.wind_direction_text %}<span class="wind-dir">{{ step.wind_direction_text }}</span>{% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+
+    <tr class="row-gust">
+      <th scope="row">Wind gust</th>
+      {% for step in day.timesteps %}
+      <td{% if step.gust_is_strong %} class="strong"{% endif %}>{{ cell(step, 'wind_gust') }}</td>
+      {% endfor %}
+    </tr>
+
+    <tr class="row-vis">
+      <th scope="row">Visibility</th>
+      {% for step in day.timesteps %}
+      {% set band = step.visibility_band %}
+      <td>{% if band %}<abbr title="{{ band.label }}">{{ band.code }}</abbr>{% else %}<span class="na">&mdash;</span>{% endif %}</td>
+      {% endfor %}
+    </tr>
+
+    <tr class="row-humidity">
+      <th scope="row">Humidity</th>
+      {% for step in day.timesteps %}<td>{{ cell(step, 'humidity', '%') }}</td>{% endfor %}
+    </tr>
+
+    <tr class="row-uv">
+      <th scope="row">UV index</th>
+      {% for step in day.timesteps %}
+      {% set uv = step.rounded('uv') %}
+      <td>{% if uv is none %}<span class="na">&mdash;</span>{% else %}<abbr class="uv uv-{{ uv }}" title="{{ step.uv_band }}">{{ uv }}</abbr>{% endif %}</td>
+      {% endfor %}
+    </tr>
+
+    <tr class="row-pressure">
+      <th scope="row">Pressure</th>
+      {% for step in day.timesteps %}<td>{{ cell(step, 'pressure') }}</td>{% endfor %}
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p class="units-note">
+  Temperature &deg;C &middot; wind and gust mph &middot; pressure hPa &middot;
+  visibility VP &lt;1km, P 1&ndash;4km, M 4&ndash;10km, G 10&ndash;20km, VG 20&ndash;40km, E &gt;40km
+</p>
+{% endif %}
+{% endblock %}

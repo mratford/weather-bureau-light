@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Weather Bureau Light{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='metoffice.css') }}">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="{{ url_for('index') }}">Weather Bureau <span>Light</span></a>
+    <form class="site-search" action="{{ url_for('search') }}" method="get" role="search">
+      <label class="visually-hidden" for="q">Search for a place</label>
+      <input id="q" name="q" type="search" placeholder="Search for a place"
+             value="{{ query|default('', true) }}" autocomplete="off">
+      <button type="submit">Search</button>
+    </form>
+  </div>
+</header>
+
+<main class="page">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="page-footer">
+  <p>
+    Forecast data &copy; Crown copyright, Met Office, via the
+    Weather DataHub Blended Probabilistic Forecast API.
+    Weather symbols drawn for this project.
+  </p>
+</footer>
+
+</body>
+</html>

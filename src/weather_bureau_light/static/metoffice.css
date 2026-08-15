@@ -1,0 +1,232 @@
+/* Old Met Office forecast page: dense table, navy masthead, temperature chips. */
+
+:root {
+  --navy: #00285f;
+  --navy-mid: #003f8f;
+  --blue: #0069c2;
+  --blue-pale: #e7eff7;
+  --rule: #c9d4e2;
+  --ink: #1c1c1c;
+  --ink-soft: #5a6473;
+  --page: #ffffff;
+  --band: #f4f7fa;
+  --warn: #8a5300;
+  --warn-bg: #fdf3e2;
+  --error: #a4262c;
+  --error-bg: #fdeaea;
+  --row-label-w: 15rem;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 400 15px/1.45 "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---- masthead ---- */
+
+.masthead { background: var(--navy); color: #fff; }
+
+.masthead-inner {
+  max-width: 1400px; margin: 0 auto; padding: 0.85rem 1.25rem;
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+}
+
+.brand {
+  color: #fff; text-decoration: none; font-size: 1.3rem; font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.brand span { font-weight: 300; opacity: 0.85; }
+
+.site-search { margin-left: auto; display: flex; gap: 0.4rem; }
+
+.site-search input {
+  min-width: 15rem; padding: 0.45rem 0.7rem; font-size: 0.95rem;
+  border: 1px solid var(--navy-mid); border-radius: 2px;
+}
+
+.site-search button {
+  padding: 0.45rem 1rem; font-size: 0.95rem; cursor: pointer; color: #fff;
+  background: var(--blue); border: 1px solid var(--blue); border-radius: 2px;
+}
+.site-search button:hover { background: #0057a3; }
+
+/* ---- page furniture ---- */
+
+.page { max-width: 1400px; margin: 0 auto; padding: 1.25rem; }
+
+.place { margin: 0.4rem 0 0.2rem; font-size: 1.8rem; font-weight: 600; color: var(--navy); }
+.place .region { font-weight: 400; color: var(--ink-soft); font-size: 1.1rem; }
+
+.issued { margin: 0 0 1rem; color: var(--ink-soft); font-size: 0.85rem; }
+
+.warning {
+  padding: 0.6rem 0.85rem; margin-bottom: 1rem; font-size: 0.9rem;
+  background: var(--warn-bg); border-left: 4px solid var(--warn); color: var(--warn);
+}
+
+.error-box {
+  padding: 0.85rem 1rem; background: var(--error-bg);
+  border-left: 4px solid var(--error); color: var(--error);
+}
+
+.hint-block { color: var(--ink-soft); font-size: 0.9rem; }
+
+.units-note { margin-top: 0.75rem; color: var(--ink-soft); font-size: 0.8rem; }
+
+.page-footer {
+  max-width: 1400px; margin: 2rem auto 1rem; padding: 1rem 1.25rem 0;
+  border-top: 1px solid var(--rule); color: var(--ink-soft); font-size: 0.78rem;
+}
+
+/* ---- day tabs ---- */
+
+.day-tabs {
+  display: flex; gap: 2px; overflow-x: auto; margin-bottom: 1px;
+  scrollbar-width: thin;
+}
+
+.day-tab {
+  flex: 1 0 8.5rem; padding: 0.6rem 0.5rem 0.5rem; text-align: center;
+  text-decoration: none; color: var(--ink); background: var(--band);
+  border-top: 3px solid transparent; display: flex; flex-direction: column;
+  align-items: center; gap: 0.2rem;
+}
+.day-tab:hover { background: var(--blue-pale); }
+
+.day-tab.is-selected {
+  background: var(--blue-pale); border-top-color: var(--blue);
+  box-shadow: inset 0 -3px 0 var(--blue-pale);
+}
+
+.day-name { font-weight: 600; font-size: 0.9rem; color: var(--navy); }
+.day-symbol .wx { width: 38px; height: 38px; }
+.day-temps { display: flex; gap: 0.5rem; font-size: 1rem; }
+.t-max { font-weight: 700; }
+.t-min { color: var(--ink-soft); }
+.day-sun { font-size: 0.72rem; color: var(--ink-soft); }
+
+/* ---- forecast table ---- */
+
+.table-scroll { overflow-x: auto; border: 1px solid var(--rule); }
+
+.forecast-table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+
+.forecast-table th[scope="row"] {
+  position: sticky; left: 0; z-index: 2;
+  width: var(--row-label-w); min-width: var(--row-label-w);
+  padding: 0.5rem 0.75rem; text-align: left; font-weight: 600;
+  color: var(--navy); background: var(--band);
+  border-right: 2px solid var(--rule);
+}
+
+.forecast-table td {
+  min-width: 4.6rem; padding: 0.45rem 0.35rem; text-align: center;
+  border-left: 1px solid var(--rule);
+}
+
+.forecast-table tr { border-top: 1px solid var(--rule); }
+.forecast-table tr:first-child { border-top: 0; }
+
+.row-time td { font-weight: 700; color: var(--navy); background: var(--band); }
+.row-time th[scope="row"] { background: #e3e9f1; }
+
+.row-symbol td { padding: 0.35rem; }
+.row-symbol .wx { width: 34px; height: 34px; }
+
+.row-temp td { font-size: 1.05rem; }
+.row-feels td { color: var(--ink-soft); }
+
+.row-range { background: #fbfcfe; }
+.row-range td { font-size: 0.78rem; color: var(--ink-soft); white-space: nowrap; }
+.row-range .hint { display: block; font-weight: 400; font-size: 0.72rem; color: var(--ink-soft); }
+
+.row-gust .strong { font-weight: 700; color: var(--navy); }
+
+.na { color: #9aa4b2; }
+
+/* Temperature chips, warm to cool. */
+.temp-chip {
+  display: inline-block; min-width: 2.6rem; padding: 0.15rem 0.35rem;
+  border-radius: 3px; font-weight: 700; background: var(--blue-pale);
+}
+.temp-chip[data-t^="-"]           { background: #d6e6f5; }
+.temp-chip[data-t="0"],
+.temp-chip[data-t="1"], .temp-chip[data-t="2"], .temp-chip[data-t="3"],
+.temp-chip[data-t="4"], .temp-chip[data-t="5"]  { background: #cfe3f3; }
+.temp-chip[data-t="6"], .temp-chip[data-t="7"],
+.temp-chip[data-t="8"], .temp-chip[data-t="9"],
+.temp-chip[data-t="10"], .temp-chip[data-t="11"] { background: #dceccd; }
+.temp-chip[data-t="12"], .temp-chip[data-t="13"],
+.temp-chip[data-t="14"], .temp-chip[data-t="15"],
+.temp-chip[data-t="16"], .temp-chip[data-t="17"] { background: #fdf3c8; }
+.temp-chip[data-t="18"], .temp-chip[data-t="19"],
+.temp-chip[data-t="20"], .temp-chip[data-t="21"],
+.temp-chip[data-t="22"], .temp-chip[data-t="23"] { background: #fbdfa8; }
+.temp-chip[data-t="24"], .temp-chip[data-t="25"],
+.temp-chip[data-t="26"], .temp-chip[data-t="27"] { background: #f7c48a; }
+.temp-chip[data-t="28"], .temp-chip[data-t="29"],
+.temp-chip[data-t="30"], .temp-chip[data-t="31"],
+.temp-chip[data-t="32"], .temp-chip[data-t="33"],
+.temp-chip[data-t="34"], .temp-chip[data-t="35"] { background: #f0a07a; }
+
+/* Wind arrow points the way the wind blows *to*, hence the 180deg offset. */
+.wind-arrow {
+  display: inline-block; color: var(--navy); font-size: 1rem;
+  transform: rotate(calc(var(--dir) + 180deg));
+}
+.wind-speed { display: block; font-weight: 600; }
+.wind-dir { display: block; font-size: 0.72rem; color: var(--ink-soft); }
+
+abbr[title] { text-decoration: none; border-bottom: 1px dotted var(--ink-soft); cursor: help; }
+
+.uv { display: inline-block; min-width: 1.5rem; padding: 0.05rem 0.3rem; border-radius: 3px; font-weight: 600; }
+.uv-1, .uv-2 { background: #d8ecd0; }
+.uv-3, .uv-4, .uv-5 { background: #fdf0bf; }
+.uv-6, .uv-7 { background: #fbd9a5; }
+.uv-8, .uv-9, .uv-10 { background: #f5b4a1; }
+.uv-11, .uv-12 { background: #e9a8d4; }
+
+/* ---- search results ---- */
+
+.site-list { list-style: none; margin: 0; padding: 0; max-width: 40rem; }
+.site-list li { border-bottom: 1px solid var(--rule); }
+.site-list a {
+  display: flex; align-items: baseline; gap: 0.6rem;
+  padding: 0.6rem 0.4rem; text-decoration: none; color: var(--ink);
+}
+.site-list a:hover { background: var(--blue-pale); }
+.site-list .region { color: var(--ink-soft); font-size: 0.85rem; }
+.site-list .coords { margin-left: auto; color: var(--ink-soft); font-size: 0.75rem; }
+
+/* ---- weather symbols ---- */
+
+.sprite-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.wx { display: inline-block; vertical-align: middle; }
+
+.s-sun { fill: #f6a623; }
+.s-ray { stroke: #f6a623; stroke-width: 1.8; stroke-linecap: round; }
+.s-moon { fill: #e8c15a; }
+.s-cloud { fill: #d7dee7; stroke: #9fadbf; stroke-width: 0.7; }
+.s-cloud-dark { fill: #a9b6c6; stroke: #7e8ea2; stroke-width: 0.7; }
+.s-rain { stroke: #2a7fd4; stroke-width: 1.7; stroke-linecap: round; }
+.s-snow line { stroke: #6aa9e0; stroke-width: 1.2; stroke-linecap: round; }
+.s-hail { fill: #6aa9e0; }
+.s-mist { stroke: #9fadbf; stroke-width: 1.5; stroke-linecap: round; }
+.s-bolt { fill: #f2c200; }
+.s-unknown { fill: none; stroke: #b6bfcb; stroke-width: 1.4; }
+.s-unknown-text { fill: #9aa4b2; font: 700 11px sans-serif; }
+
+@media (max-width: 700px) {
+  :root { --row-label-w: 9.5rem; }
+  .site-search { margin-left: 0; width: 100%; }
+  .site-search input { flex: 1; min-width: 0; }
+}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Search results{% endblock %}
+
+{% block content %}
+<h1 class="place">Search</h1>
+
+{% if not query %}
+<p class="hint-block">Type a place name in the box above.</p>
+{% elif not results %}
+<p class="hint-block">No sites matched &ldquo;{{ query }}&rdquo;.</p>
+{% else %}
+<p class="hint-block">{{ results|length }} place{{ '' if results|length == 1 else 's' }} matching &ldquo;{{ query }}&rdquo;</p>
+<ul class="site-list">
+  {% for hit in results %}
+  <li>
+    <a href="{{ url_for('forecast', site_id=hit.site.id, name=hit.place.name) }}">
+      <strong>{{ hit.place.name }}</strong>
+      {% if hit.place.region %}<span class="region">{{ hit.place.region }}</span>{% endif %}
+      <span class="coords">forecast site {{ hit.site.id }}, {{ '%.1f'|format(hit.distance_km) }} km</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

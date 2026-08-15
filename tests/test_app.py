@@ -1,0 +1,149 @@
+"""Route and rendering tests, driven through a fake API client."""
+
+from __future__ import annotations
+
+import re
+
+
+def text(response) -> str:
+    return response.get_data(as_text=True)
+
+
+def test_index_redirects_to_default_site(client):
+    response = client.get("/")
+    assert response.status_code == 302
+    # Brentwood is the nearest fixture site to the configured default coordinates.
+    assert "/forecast/00350584" in response.headers["Location"]
+
+
+def test_forecast_page_renders(client):
+    response = client.get("/forecast/00350584")
+    assert response.status_code == 200
+    body = text(response)
+    assert "Brentwood" in body
+    assert "forecast site" in body or "Brentwood" in body
+
+
+def test_all_expected_rows_present(client):
+    body = text(client.get("/forecast/00350584"))
+    for label in [
+        "Time",
+        "Weather",
+        "Chance of precipitation",
+        "Temperature",
+        "Feels like",
+        "Likely range",
+        "Wind speed and direction",
+        "Wind gust",
+        "Visibility",
+        "Humidity",
+        "UV index",
+        "Pressure",
+    ]:
+        assert f">{label}" in body or f"{label} <" in body, f"missing row: {label}"
+
+
+def test_no_missing_field_warning_when_everything_resolves(client):
+    body = text(client.get("/forecast/00350584"))
+    assert "Not available from the API" not in body
+
+
+def test_day_tabs_rendered(client):
+    body = text(client.get("/forecast/00350584"))
+    assert body.count("day-tab") >= 3
+    assert "2026-08-15" in body
+
+
+def test_selecting_a_day_marks_it(client):
+    body = text(client.get("/forecast/00350584?date=2026-08-16"))
+    selected = re.search(r'class="day-tab is-selected"[^>]*href="([^"]+)"', body)
+    assert selected and "2026-08-16" in selected.group(1)
+
+
+def test_unknown_date_falls_back_to_first_day(client):
+    assert client.get("/forecast/00350584?date=1999-01-01").status_code == 200
+
+
+def test_unknown_site_is_404(client):
+    assert client.get("/forecast/nosuchsite").status_code == 404
+
+
+def test_temperatures_render_as_celsius_not_kelvin(client):
+    body = text(client.get("/forecast/00350584"))
+    chips = re.findall(r'data-t="(-?\d+)"', body)
+    assert chips, "no temperature chips rendered"
+    assert all(-40 < int(v) < 50 for v in chips)
+
+
+def test_cells_are_populated_not_all_dashes(client):
+    body = text(client.get("/forecast/00350584"))
+    row = re.search(r'<tr class="row-humidity">(.*?)</tr>', body, re.S)
+    assert row and row.group(1).count("&mdash;") < 3
+
+
+def test_weather_symbols_rendered(client):
+    body = text(client.get("/forecast/00350584"))
+    assert "wx-clear" in body or "wx-cloudy" in body
+    assert "<use href=" in body
+
+
+def test_sprite_defs_included_once(client):
+    body = text(client.get("/forecast/00350584"))
+    assert body.count('class="sprite-defs"') == 1
+
+
+def test_search_lists_multiple_matches(client):
+    body = text(client.get("/search?q=Lon"))
+    assert "London" in body
+    assert "Londonderry" in body
+
+
+def test_search_maps_each_place_to_its_nearest_site(client):
+    """'London' also matches Londonderry; each gets a different spot site."""
+    body = text(client.get("/search?q=London"))
+    names = re.findall(r"<strong>([^<]+)</strong>", body)
+    assert names[0] == "London"
+    assert "Londonderry" in names
+    sites = re.findall(r"forecast site (\d+)", body)
+    assert len(set(sites)) == len(sites), "two places collapsed onto one site"
+
+
+def test_search_single_match_redirects(client):
+    response = client.get("/search?q=Brentwood")
+    assert response.status_code == 302
+    assert "/forecast/00350584" in response.headers["Location"]
+
+
+def test_search_no_match_is_graceful(client):
+    response = client.get("/search?q=Atlantis")
+    assert response.status_code == 200
+    assert "No sites matched" in text(response)
+
+
+def test_search_empty_query(client):
+    assert client.get("/search?q=").status_code == 200
+
+
+def test_site_catalogue_fetched_once_across_requests(client, fake_client):
+    """The catalogue is large; it must not be refetched per page view."""
+    client.get("/forecast/00350584")
+    client.get("/forecast/00000003")
+    assert len([c for c in fake_client.calls if c.startswith("locations:")]) == 1
+
+
+def test_both_collections_are_queried(client, fake_client):
+    client.get("/forecast/00350584")
+    forecasts = [c for c in fake_client.calls if c.startswith("forecast:")]
+    assert any("percentiles" in c for c in forecasts)
+    assert any("probabilities" in c for c in forecasts)
+
+
+def test_units_note_documents_visibility_bands(client):
+    body = text(client.get("/forecast/00350584"))
+    assert "VP" in body and "40km" in body
+
+
+def test_static_css_is_served(client):
+    response = client.get("/static/metoffice.css")
+    assert response.status_code == 200
+    assert "forecast-table" in text(response)
