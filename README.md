@@ -7,6 +7,8 @@ Office DataHub **Blended Probabilistic Forecast** (BPF) API.
 The Met Office is retiring the `?new-design=false` escape hatch on
 `weather.metoffice.gov.uk`. This keeps the layout.
 
+![The forecast page for Brentwood: a scrollable strip of day tabs, each with a weather symbol, max and min temperature and sunrise and sunset times, above an hourly table whose rows are weather symbol, chance of precipitation, temperature, feels like, likely range, wind speed and direction, wind gust, visibility, humidity, UV index and pressure.](docs/screenshot.jpg)
+
 ## Setup
 
 You need a [Weather DataHub](https://datahub.metoffice.gov.uk/) account subscribed to
