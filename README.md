@@ -8,7 +8,7 @@ information on a single page. This repo creates a website that uses the Met
 Office API to display dense forecast data on a light background. 
 
 There is a bonus "likely range" row which is the 10th–90th percentile spread
-for the temperature, plus some extra days.
+for the temperature.
 
 ![The forecast page for Brentwood: a scrollable strip of day tabs, each with a weather symbol, max and min temperature and sunrise and sunset times, above an hourly table whose rows are weather symbol, chance of precipitation, temperature, feels like, likely range, wind speed and direction, wind gust, visibility, humidity, UV index and pressure.](docs/screenshot.jpg)
 
@@ -37,22 +37,14 @@ uv run weather-bureau-light
 ```
 and open <http://127.0.0.1:5000/>.
 
-The default location is Brentwood (Essex). Use the search box for anywhere else, or set
-`WBL_DEFAULT_SITE` in `.env` to change where the front page lands. That takes either a
+Set a default location with
+`WBL_DEFAULT_SITE` in `.env`, which takes either a
 place name or postcode
 ```
 WBL_DEFAULT_SITE=Chelmsford
 ```
-or a spot-site id, which is the Met Office's own identifier for one of the fixed points
-it forecasts for
-```
-WBL_DEFAULT_SITE=00350584
-```
-A name is looked up the same way the search box looks it up, so an ambiguous one lands on
-whichever match ranks first — the resolved site is logged at startup and named at the top
-of the page. An id is unambiguous and never changes; find one by searching for the place
-in the app and reading it out of the `/forecast/<id>` URL. Keep the leading zeros. If the
-value matches nothing at all the page falls back to Brentwood and logs a warning.
+You can also use a spot-site id, which is the Met Office's own identifier for one of the fixed points
+it forecasts for.
 
 ## Development notes 
 ### Notes on the API
@@ -94,12 +86,12 @@ uv run python scripts/discover.py # dump the live API shape to scratch/discovery
 ```
 
 Responses are cached under `.cache/` because the free tier is capped per day. Forecast
-and instance requests **expire when the wall-clock hour turns** rather than after a
+and instance requests expire on a new hour rather than after a
 fixed interval: the data rolls hourly, its time axis advancing a step so the leading
 columns drop off. Aligning to that boundary keeps already-past hours off the table and
-caps refetches at 24 a day per site, against the 96 a 15-minute TTL would cost. A
+caps refetches at 24 a day per site. A
 five-minute floor stops a fetch at 09:59 expiring a minute later. The site catalogue is
-cached for a week, and stale cache is served if the API fails, on the grounds that a
+cached for a week, and stale cache is served if the API fails on the grounds that a
 slightly old forecast beats an error page.
 
 The cache records its own write time inside each file rather than trusting the mtime,
