@@ -106,7 +106,7 @@ which a copy or a backup restore would silently reset.
 
 Forecast data © Crown copyright, Met Office. The page footer carries the "Data supplied
 by the Met Office" acknowledgement the DataHub terms require. The
-weather symbols are drawn for this project — the Met Office's own artwork is Crown
+weather symbols have been generated for this project, the Met Office's own artwork is Crown
 copyright and is not used.
 
 [terms]: https://www.metoffice.gov.uk/binaries/content/assets/metofficegovuk/pdf/data/met-office-weatherdatahub-terms-and-conditions.pdf
