@@ -72,12 +72,12 @@
 
   <tbody>
     <tr class="row-time">
-      <th scope="row">Time</th>
+      <th scope="row"><span class="row-label">Time</span></th>
       {% for step in day.timesteps %}<td>{{ step.label }}</td>{% endfor %}
     </tr>
 
     <tr class="row-symbol">
-      <th scope="row">Weather</th>
+      <th scope="row"><span class="row-label">Weather</span></th>
       {% for step in day.timesteps %}
       <td>
         {%- if step.symbol.known -%}
@@ -88,12 +88,12 @@
     </tr>
 
     <tr class="row-precip">
-      <th scope="row">Chance of precipitation</th>
+      <th scope="row"><span class="row-label">Chance of precipitation</span></th>
       {% for step in day.timesteps %}<td>{{ cell(step, 'precipitation_probability', '%') }}</td>{% endfor %}
     </tr>
 
     <tr class="row-temp">
-      <th scope="row">Temperature</th>
+      <th scope="row"><span class="row-label">Temperature</span></th>
       {% for step in day.timesteps %}
       {% set t = step.rounded('temperature') %}
       <td><span class="temp-chip"{% if t is not none %} data-t="{{ t }}"{% endif %}>{{ cell(step, 'temperature', '°') }}</span></td>
@@ -101,19 +101,19 @@
     </tr>
 
     <tr class="row-feels">
-      <th scope="row">Feels like</th>
+      <th scope="row"><span class="row-label">Feels like</span></th>
       {% for step in day.timesteps %}<td>{{ cell(step, 'feels_like', '°') }}</td>{% endfor %}
     </tr>
 
     <tr class="row-range">
-      <th scope="row">Likely range <span class="hint">10th&ndash;90th percentile</span></th>
+      <th scope="row"><span class="row-label">Likely range <span class="hint">10th&ndash;90th percentile</span></span></th>
       {% for step in day.timesteps %}
       <td class="range-cell">{{ step.value('temperature').range_text('°') }}</td>
       {% endfor %}
     </tr>
 
     <tr class="row-wind">
-      <th scope="row">Wind speed and direction</th>
+      <th scope="row"><span class="row-label">Wind speed and direction</span></th>
       {% for step in day.timesteps %}
       {% set dir = step.median('wind_direction') %}
       <td>
@@ -127,14 +127,14 @@
     </tr>
 
     <tr class="row-gust">
-      <th scope="row">Wind gust</th>
+      <th scope="row"><span class="row-label">Wind gust</span></th>
       {% for step in day.timesteps %}
       <td{% if step.gust_is_strong %} class="strong"{% endif %}>{{ cell(step, 'wind_gust') }}</td>
       {% endfor %}
     </tr>
 
     <tr class="row-vis">
-      <th scope="row">Visibility</th>
+      <th scope="row"><span class="row-label">Visibility</span></th>
       {% for step in day.timesteps %}
       {% set band = step.visibility_band %}
       <td>{% if band %}<abbr title="{{ band.label }}">{{ band.code }}</abbr>{% else %}<span class="na">&mdash;</span>{% endif %}</td>
@@ -142,12 +142,12 @@
     </tr>
 
     <tr class="row-humidity">
-      <th scope="row">Humidity</th>
+      <th scope="row"><span class="row-label">Humidity</span></th>
       {% for step in day.timesteps %}<td>{{ cell(step, 'humidity', '%') }}</td>{% endfor %}
     </tr>
 
     <tr class="row-uv">
-      <th scope="row">UV index</th>
+      <th scope="row"><span class="row-label">UV index</span></th>
       {% for step in day.timesteps %}
       {% set uv = step.rounded('uv') %}
       <td>{% if uv is none %}<span class="na">&mdash;</span>{% else %}<abbr class="uv uv-{{ uv }}" title="{{ step.uv_band }}">{{ uv }}</abbr>{% endif %}</td>
@@ -155,7 +155,7 @@
     </tr>
 
     <tr class="row-pressure">
-      <th scope="row">Pressure</th>
+      <th scope="row"><span class="row-label">Pressure</span></th>
       {% for step in day.timesteps %}<td>{{ cell(step, 'pressure') }}</td>{% endfor %}
     </tr>
   </tbody>

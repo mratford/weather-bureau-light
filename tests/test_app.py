@@ -215,6 +215,18 @@ def test_every_season_has_a_masthead_palette(client):
             assert token in block, f"{name} is missing {token}"
 
 
+def test_row_headings_are_wrapped_for_the_mobile_layout(client):
+    """On a phone the label is lifted out of the layout, which needs its own element:
+    without the span there is nothing to position and the heading column returns."""
+    body = text(client.get("/forecast/00350584"))
+    assert body.count('<th scope="row"><span class="row-label">') == 12
+
+    css = text(client.get("/static/metoffice.css"))
+    mobile = css[css.index("@media (max-width: 700px)") :]
+    assert "--row-label-w: 0" in mobile
+    assert ".row-label" in mobile
+
+
 def test_static_css_is_served(client):
     response = client.get("/static/metoffice.css")
     assert response.status_code == 200

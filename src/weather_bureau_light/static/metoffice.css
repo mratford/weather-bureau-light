@@ -276,7 +276,38 @@ abbr[title] { text-decoration: none; border-bottom: 1px dotted var(--ink-soft); 
 .s-unknown-text { fill: #9aa4b2; font: 700 11px sans-serif; }
 
 @media (max-width: 700px) {
-  :root { --row-label-w: 9.5rem; }
   .site-search { margin-left: 0; width: 100%; }
   .site-search input { flex: 1; min-width: 0; }
+
+  /* A phone cannot spare a column for the row headings - at 9.5rem they took most of
+     the screen. The heading cell collapses to nothing and its label is lifted out of
+     the layout instead, pinned to the left edge and floating over the top of its own
+     row, so the figures get the full width and the label stays put as they scroll
+     underneath. Each row reserves a strip at the top for the label to sit in. */
+  :root { --row-label-w: 0; }
+
+  .forecast-table th[scope="row"] {
+    padding: 0; border-right: 0; background: none;
+    /* Sticky rather than absolute: it has to hold its place against the horizontal
+       scroll, which an absolutely positioned cell would ride along with. */
+    position: sticky; left: 0; z-index: 3;
+  }
+
+  .row-label {
+    position: absolute; top: 0; left: 0;
+    padding: 0.05rem 0.4rem 0.1rem;
+    font-size: 0.68rem; font-weight: 700; line-height: 1.3;
+    white-space: nowrap; color: var(--ink);
+    background: var(--band-strong); border-radius: 0 0 3px 0;
+  }
+
+  /* Clearance under the floating label, so it never covers a figure. */
+  .forecast-table td { padding-top: 1.1rem; }
+  .row-symbol td { padding-top: 0.9rem; }
+
+  /* No room for the subtitle once the label is a floating chip. */
+  .row-range .hint { display: none; }
+
+  /* The label supplies the tint these rows used the cell background for. */
+  .row-time th[scope="row"] { background: none; }
 }
