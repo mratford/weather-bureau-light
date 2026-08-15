@@ -46,6 +46,32 @@ def test_groups_48_hours_into_days(forecast):
     assert forecast.days[0].date == date(2026, 8, 15)
 
 
+def _long_forecast(hours: int, **kwargs) -> model.Forecast:
+    return model.build(
+        site=SITE,
+        percentiles=covjson.parse_collection(build_percentile_doc(hours=hours)),
+        percentile_resolution=parameters.resolve(PERCENTILE_PARAMS, PERCENTILE_FIELDS),
+        tz=UK,
+        **kwargs,
+    )
+
+
+def test_long_forecast_is_capped_at_seven_days():
+    """The API runs to about fourteen days; the strip shows the first seven."""
+    forecast = _long_forecast(14 * 24)
+    assert len(forecast.days) == model.MAX_DAYS == 7
+    assert forecast.days[0].date == date(2026, 8, 15)
+    assert forecast.days[-1].date == date(2026, 8, 21)
+
+
+def test_cap_does_not_pad_a_short_forecast():
+    assert len(_long_forecast(48).days) == 3
+
+
+def test_day_cap_is_overridable():
+    assert len(_long_forecast(14 * 24, max_days=3).days) == 3
+
+
 def test_temperature_converted_to_celsius(forecast):
     temps = [
         s.median("temperature") for d in forecast.days for s in d.timesteps

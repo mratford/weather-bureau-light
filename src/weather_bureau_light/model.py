@@ -21,6 +21,10 @@ MEDIAN = 50.0
 LOWER = 10.0
 UPPER = 90.0
 
+#: How many days the day strip shows. The API returns about fourteen, but the later ones
+#: carry no weather symbol and a spread wide enough to be worth little.
+MAX_DAYS = 7
+
 #: 0.1 mm/hr expressed in m/s, the Met Office's threshold for "any precipitation".
 PRECIP_THRESHOLD_MS = 0.0001 / 3600
 
@@ -288,6 +292,7 @@ def build(
     probability_resolution: Resolution | None = None,
     tz: ZoneInfo | None = None,
     issued: datetime | None = None,
+    max_days: int = MAX_DAYS,
 ) -> Forecast:
     """Merge the coverages into days of timesteps, in local time."""
     tz = tz or ZoneInfo("Europe/London")
@@ -320,9 +325,12 @@ def build(
             Timestep(time=local, values=by_time[moment], is_daylight=daylight)
         )
 
+    # Truncated from the far end, so the strip always starts at today.
+    ordered = [days[key] for key in sorted(days)][:max_days]
+
     return Forecast(
         site=site,
-        days=[days[key] for key in sorted(days)],
+        days=ordered,
         issued=issued,
         missing_fields=missing,
     )

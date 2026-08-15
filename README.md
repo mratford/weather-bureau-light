@@ -75,13 +75,14 @@ Things worth knowing, all confirmed against the live service by `scripts/discove
   against whatever the collection reports, so a rename degrades one row instead of
   breaking the page.
 - Some parameters are published hourly (`Pt01h`) for the first days and three-hourly
-  (`Pt03h`) after, so both are fetched and the finer one wins. Weather symbols stop at
-  about day eight even though temperature runs to fourteen; those cells show a dash.
+  (`Pt03h`) after, so both are fetched and the finer one wins. Temperature runs to about
+  fourteen days but weather symbols stop at about day eight, which is part of why the
+  page shows only the first seven (`model.MAX_DAYS`).
 
 ### Development
 
 ```sh
-uv run pytest                     # 168 tests, no network required
+uv run pytest                     # 171 tests, no network required
 uv run python scripts/discover.py # dump the live API shape to scratch/discovery/
 ```
 

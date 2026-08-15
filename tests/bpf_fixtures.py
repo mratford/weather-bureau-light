@@ -168,8 +168,8 @@ def _coverage(param: str, unit: str, times: list[str]) -> dict:
     }
 
 
-def build_percentile_doc(parameter_names: list[str] | None = None) -> dict:
-    times = _times()
+def build_percentile_doc(parameter_names: list[str] | None = None, hours: int = N_HOURS) -> dict:
+    times = _times(hours)
     wanted = parameter_names or list(PERCENTILE_PARAMS)
     return {
         "type": "CoverageCollection",
@@ -181,8 +181,8 @@ def build_percentile_doc(parameter_names: list[str] | None = None) -> dict:
     }
 
 
-def build_probability_doc(parameter_names: list[str] | None = None) -> dict:
-    times = _times()
+def build_probability_doc(parameter_names: list[str] | None = None, hours: int = N_HOURS) -> dict:
+    times = _times(hours)
     axis = f"{PROBABILITY_PARAM}Values"
     # Probability falls as the threshold rises, and units are a 0-1 fraction.
     values = [
