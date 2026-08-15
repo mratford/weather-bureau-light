@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from weather_bureau_light.season import season_for
+from weather_bureau_light.season import palette_for, season_for
 
 
 @pytest.mark.parametrize(
@@ -29,3 +29,24 @@ def test_season_turns_on_the_first_not_the_solstice():
 
 def test_december_belongs_with_the_following_january():
     assert season_for(date(2026, 12, 31)) == season_for(date(2027, 1, 1))
+
+
+@pytest.mark.parametrize("day", [24, 25, 26])
+def test_christmas_claims_its_three_days(day):
+    assert palette_for(date(2026, 12, day)) == "christmas"
+
+
+@pytest.mark.parametrize("day", [23, 27, 31])
+def test_the_rest_of_december_stays_wintry(day):
+    assert palette_for(date(2026, 12, day)) == "winter"
+
+
+def test_a_holiday_does_not_disturb_the_season_itself():
+    """season_for stays the meteorological answer; only the palette changes."""
+    assert season_for(date(2026, 12, 25)) == "winter"
+
+
+def test_palette_is_the_season_the_rest_of_the_year():
+    for month in range(1, 13):
+        day = date(2026, month, 15)
+        assert palette_for(day) == season_for(day)

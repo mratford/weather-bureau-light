@@ -68,6 +68,13 @@ body {
   --action: #a13018; --action-hover: #b83a1e; --action-ink: #ffffff;
 }
 
+/* Christmas Eve to Boxing Day, in place of winter. Same class namespace as the
+   seasons because it fills the same slot: one palette, chosen per day. */
+.season-christmas {              /* white on red, with a holly green button */
+  --brand: #b3121f; --brand-ink: #ffffff; --brand-edge: #7d0d16;
+  --action: #146b3a; --action-hover: #1a8146; --action-ink: #ffffff;
+}
+
 /* ---- masthead ---- */
 
 .masthead { background: var(--brand); color: var(--brand-ink); }

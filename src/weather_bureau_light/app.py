@@ -9,7 +9,7 @@ from flask import Flask, abort, redirect, render_template, request, url_for
 
 from .config import UK_TZ, Config, ConfigError
 from .datahub import DataHubError
-from .season import season_for
+from .season import palette_for
 from .service import ForecastService
 
 log = logging.getLogger(__name__)
@@ -25,8 +25,9 @@ def create_app(config: Config | None = None, service: ForecastService | None = N
 
     @app.context_processor
     def season() -> dict[str, str]:
-        """Every page carries the season, which picks the masthead palette."""
-        return {"season": season_for(datetime.now(UK_TZ).date())}
+        """Every page carries the name of its masthead palette: the season, or a
+        holiday's own colours on the days that have them."""
+        return {"season": palette_for(datetime.now(UK_TZ).date())}
 
     @app.route("/")
     def index():

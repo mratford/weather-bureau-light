@@ -200,16 +200,16 @@ def test_page_is_dressed_for_the_season(client):
     from datetime import datetime
 
     from weather_bureau_light.config import UK_TZ
-    from weather_bureau_light.season import season_for
+    from weather_bureau_light.season import palette_for
 
-    today = season_for(datetime.now(UK_TZ).date())
+    today = palette_for(datetime.now(UK_TZ).date())
     assert f'class="season-{today}"' in text(client.get("/forecast/00350584"))
 
 
 def test_every_season_has_a_masthead_palette(client):
     """A season with no rule would silently fall back to the autumn default."""
     css = text(client.get("/static/metoffice.css"))
-    for name in ("autumn", "winter", "spring", "summer"):
+    for name in ("autumn", "winter", "spring", "summer", "christmas"):
         block = css[css.index(f".season-{name}") :][:300]
         for token in ("--brand:", "--brand-ink:", "--brand-edge:", "--action:"):
             assert token in block, f"{name} is missing {token}"
