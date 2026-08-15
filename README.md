@@ -1,8 +1,6 @@
-**Warning** This is completely AI generated, with all that that implies.
+**WARNING** This is completely AI generated, with all that that implies.
 
 # weather-bureau-light
-
-A locally hosted website recreating the old Met Office design.
 
 The new Met Office website is very pretty but light text on a dark background
 is difficult to read for some of us with astigmatism and there's less
@@ -10,13 +8,13 @@ information on a single page. This repo creates a website that uses the Met
 Office API to display dense forecast data on a light background. 
 
 There is a bonus "likely range" row which is the 10th–90th percentile spread
-for the temperature, and extra days.
+for the temperature, plus some extra days.
 
 ![The forecast page for Brentwood: a scrollable strip of day tabs, each with a weather symbol, max and min temperature and sunrise and sunset times, above an hourly table whose rows are weather symbol, chance of precipitation, temperature, feels like, likely range, wind speed and direction, wind gust, visibility, humidity, UV index and pressure.](docs/screenshot.jpg)
 
 ## Setup
 
-Open a [Met Office data](https://datahub.metoffice.gov.uk/) account and subscribe to
+Open a [Met Office data account](https://datahub.metoffice.gov.uk/) and subscribe to
 the Site-Specific Blended Probabilistic Forecast API. This is free for up
 to 55 calls per day, which should be fine for personal use.
 
