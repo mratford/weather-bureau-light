@@ -143,9 +143,11 @@ body {
 }
 .day-tab:hover { background: var(--hilite); }
 
+/* The selected day is the one lit up: white against the grey of its neighbours, so
+   it reads as the tab the table below belongs to. */
 .day-tab.is-selected {
-  background: var(--band-strong); border-top-color: var(--ink);
-  box-shadow: inset 0 -3px 0 var(--band-strong);
+  background: var(--page); border-top-color: var(--ink);
+  box-shadow: inset 0 -3px 0 var(--page);
 }
 
 .day-name { font-weight: 600; font-size: 0.9rem; color: var(--ink); }
