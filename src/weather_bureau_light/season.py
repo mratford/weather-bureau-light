@@ -12,8 +12,13 @@ from datetime import date
 _SEASONS = ("winter", "spring", "summer", "autumn")
 
 
-#: Dates that dress the masthead themselves, whatever season they fall in.
-_HOLIDAYS = {(12, 24): "christmas", (12, 25): "christmas", (12, 26): "christmas"}
+#: Dates that dress the page themselves, whatever season they fall in.
+_HOLIDAYS = {
+    (10, 31): "halloween",
+    (12, 24): "christmas",
+    (12, 25): "christmas",
+    (12, 26): "christmas",
+}
 
 
 def season_for(day: date) -> str:

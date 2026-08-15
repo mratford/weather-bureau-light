@@ -10,7 +10,9 @@
 
 <header class="masthead">
   <div class="masthead-inner">
-    <a class="brand" href="{{ url_for('index') }}">Weather Bureau <span>Light</span></a>
+    {# Light every day but Halloween, when the whole page goes dark. #}
+    <a class="brand" href="{{ url_for('index') }}">Weather Bureau
+      <span>{{ 'Dark' if season == 'halloween' else 'Light' }}</span></a>
     <form class="site-search" action="{{ url_for('search') }}" method="get" role="search">
       <label class="visually-hidden" for="q">Search for a place</label>
       <input id="q" name="q" type="search" placeholder="Search for a place"

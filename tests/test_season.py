@@ -41,6 +41,15 @@ def test_the_rest_of_december_stays_wintry(day):
     assert palette_for(date(2026, 12, day)) == "winter"
 
 
+def test_halloween_claims_the_31st_of_october():
+    assert palette_for(date(2026, 10, 31)) == "halloween"
+
+
+@pytest.mark.parametrize("month,day", [(10, 30), (11, 1)])
+def test_the_days_either_side_of_halloween_are_autumn(month, day):
+    assert palette_for(date(2026, month, day)) == "autumn"
+
+
 def test_a_holiday_does_not_disturb_the_season_itself():
     """season_for stays the meteorological answer; only the palette changes."""
     assert season_for(date(2026, 12, 25)) == "winter"

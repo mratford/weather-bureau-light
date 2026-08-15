@@ -209,10 +209,28 @@ def test_page_is_dressed_for_the_season(client):
 def test_every_season_has_a_masthead_palette(client):
     """A season with no rule would silently fall back to the autumn default."""
     css = text(client.get("/static/metoffice.css"))
-    for name in ("autumn", "winter", "spring", "summer", "christmas"):
-        block = css[css.index(f".season-{name}") :][:300]
+    for name in ("autumn", "winter", "spring", "summer", "christmas", "halloween"):
+        block = css[css.index(f".season-{name}") :][:400]
         for token in ("--brand:", "--brand-ink:", "--brand-edge:", "--action:"):
             assert token in block, f"{name} is missing {token}"
+
+
+def test_halloween_turns_the_whole_page_dark(client, monkeypatch):
+    """The one palette that overrides the content tokens, not just the brand ones."""
+    monkeypatch.setattr("weather_bureau_light.app.palette_for", lambda day: "halloween")
+    body = text(client.get("/forecast/00350584"))
+    assert 'class="season-halloween"' in body
+    assert "Weather Bureau" in body and ">Dark<" in body
+
+    css = text(client.get("/static/metoffice.css"))
+    block = css[css.index(".season-halloween") :][:400]
+    for token in ("--page:", "--ink:", "--band:", "--rule:"):
+        assert token in block, f"halloween is missing {token}"
+
+
+def test_the_masthead_says_light_on_an_ordinary_day(client, monkeypatch):
+    monkeypatch.setattr("weather_bureau_light.app.palette_for", lambda day: "summer")
+    assert ">Light<" in text(client.get("/forecast/00350584"))
 
 
 def test_row_headings_are_wrapped_for_the_mobile_layout(client):

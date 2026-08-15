@@ -75,6 +75,32 @@ body {
   --action: #146b3a; --action-hover: #1a8146; --action-ink: #ffffff;
 }
 
+/* Halloween, the one day the whole page turns rather than just the masthead: black
+   ground, pumpkin lettering, blood red rules. It reaches past the brand tokens into
+   the content ones, which every other palette leaves alone. */
+.season-halloween {
+  --brand: #0a0a0a; --brand-ink: #ff7518; --brand-edge: #7a1010;
+  --action: #8b0000; --action-hover: #a80f0f; --action-ink: #ffffff;
+  --page: #0a0a0a; --ink: #f5ede6; --ink-soft: #c9955f;
+  --band: #17120f; --band-strong: #241a14; --hilite: #2e1f16;
+  --rule: #4d1616;
+}
+
+/* The rest of the stylesheet reads tokens, but these few hardcode a light colour
+   and would glare out of the dark, or invert into something unreadable. */
+.season-halloween .masthead { border-bottom: 2px solid #8b0000; }
+.season-halloween .place { color: #c1121f; }
+.season-halloween .row-range { background: #12100e; }
+.season-halloween .na { color: #6b5a4a; }
+.season-halloween .day-tab.is-selected { border-top-color: #ff7518; }
+.season-halloween .site-search input { background: #1a1a1a; color: #f5ede6; }
+/* The temperature and UV chips keep their pale fills - the scale still has to be
+   readable - so their text has to stay dark rather than inherit the bone --ink.
+   UV 0 is excluded: it is the one chip with no fill, so dark text would lose it
+   against the black. */
+.season-halloween .temp-chip,
+.season-halloween .uv:not(.uv-0) { color: #0a0a0a; }
+
 /* ---- masthead ---- */
 
 .masthead { background: var(--brand); color: var(--brand-ink); }
