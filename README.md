@@ -1,69 +1,68 @@
-# Weather Bureau Light
+**WARNING** This is completely AI generated, with all that that implies.
 
-Weather Bureau Light is a small local website for viewing dense Met Office forecasts
-on a light background. It was built for people who find light text on a dark screen
-difficult to read, and who prefer to see more forecast information at once.
+# weather-bureau-light
 
-The forecast includes a likely temperature range, showing the 10th to 90th percentile
-of the Met Office's probabilistic forecast. It can also show Met Office Weather
-Warnings that affect the selected forecast site.
+The new Met Office website is very pretty but light text on a dark background
+is difficult to read for some of us with astigmatism and there's less
+information on a single page. This repo creates a local website that uses the Met
+Office API to display dense forecast data on a light background.
 
-This application is for personal, local use. The [Met Office terms of service][terms]
-do not permit it to be run as a public instance.
+There is a bonus "likely range" row which is the 10th–90th percentile spread
+for the temperature.
 
-![The forecast page for Brentwood, showing day tabs above an hourly table with weather symbols, precipitation probability, temperature, feels like temperature, likely range, wind, visibility, humidity, UV index and pressure.](docs/screenshot.jpg)
+Please note that the [Met Office terms of service][terms] prohibit this being run as a
+public instance.
+
+![The forecast page for Brentwood: a scrollable strip of day tabs, each with a weather symbol, max and min temperature and sunrise and sunset times, above an hourly table whose rows are weather symbol, chance of precipitation, temperature, feels like, likely range, wind speed and direction, wind gust, visibility, humidity, UV index and pressure.](docs/screenshot.jpg)
 
 ## Setup
 
-Create an account at [Met Office Weather DataHub](https://datahub.metoffice.gov.uk/)
-and subscribe to the Site-Specific Blended Probabilistic Forecast API. The personal
-plan allows up to 55 calls per day.
+Open a [Met Office data account](https://datahub.metoffice.gov.uk/) and subscribe to
+the Site-Specific Blended Probabilistic Forecast API. This is free for up
+to 55 calls per day, which should be fine for personal use.
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then create your
-environment file:
+[Install uv](https://docs.astral.sh/uv/getting-started/installation/).
 
+Create a `.env` file from the example
 ```sh
 cp .env.example .env
 ```
+and edit it to include your API key.
 
-Add your forecast API key to `METOFFICE_API_KEY` in `.env`. If you also have access to
-the NSWWS Public API, add its key to `METOFFICE_NSWWS_API_KEY`; warnings are optional.
+To show Met Office Weather Warnings for the selected site, also set
+`METOFFICE_NSWWS_API_KEY` with a key for the NSWWS Public API. The warnings feed is
+optional; without it the forecast page is unchanged.
 
-Install the dependencies:
-
+Install the necessary Python packages with
 ```sh
 uv sync
 ```
 
-Start the site:
-
+Then to run
 ```sh
 uv run weather-bureau-light
 ```
+and open <http://127.0.0.1:5000/>.
 
-Open the address printed by the command (normally <http://127.0.0.1:5000/>).
-
-To choose the site shown on the home page, set `WBL_DEFAULT_SITE` in `.env` to a place
-name, postcode, or Met Office spot-site ID:
-
-```dotenv
+Set a default location with
+`WBL_DEFAULT_SITE` in `.env`, which takes either a
+place name or postcode
+```
 WBL_DEFAULT_SITE=Chelmsford
 ```
+You can also use a spot-site id, which is the Met Office's own identifier for one of the fixed points
+it forecasts for.
 
-## When the API is unavailable
+### When something goes wrong
 
-Forecast responses are cached under `.cache/`. If a request fails, the site serves the
-most recent cached forecast and labels it as stale. Weather warnings fail closed: the
-warnings section is omitted if the warnings API cannot be reached.
+The page shows cached data rather than erroring if data could not be fetched for
+whatever reason. A message will show describing the error.
 
-The health endpoint reports the state of the forecast API without making another API
-request:
-
+You can also use the `/healthz` endpoint, which returns `200`
+while the API is answering and `503` once a fetch has failed, e.g
 ```sh
 curl -sf http://127.0.0.1:5000/healthz || echo "forecast data is going stale"
 ```
-
-It returns `200` while requests are succeeding and `503` after a request has failed.
 
 ## Development notes
 
