@@ -215,6 +215,33 @@ def test_every_season_has_a_masthead_palette(client):
             assert token in block, f"{name} is missing {token}"
 
 
+def test_ordinary_season_mastheads_are_black_on_white(client):
+    css = text(client.get("/static/metoffice.css"))
+    for name in ("autumn", "winter", "spring", "summer"):
+        block = css[css.index(f".season-{name}") :][:400]
+        assert "--brand: #ffffff" in block
+        assert "--brand-ink: #000000" in block
+        assert "--brand-edge: #000000" in block
+        assert "--action: #ffffff" in block
+        assert "--action-ink: #000000" in block
+
+
+def test_holiday_masthead_palettes_remain_special(client):
+    css = text(client.get("/static/metoffice.css"))
+    christmas = css[css.index(".season-christmas") :][:400]
+    halloween = css[css.index(".season-halloween") :][:400]
+    assert "--brand: #b3121f" in christmas
+    assert "--action: #146b3a" in christmas
+    assert "--brand: #0a0a0a" in halloween
+    assert "--action: #8b0000" in halloween
+
+
+def test_masthead_has_a_thin_black_border(client):
+    css = text(client.get("/static/metoffice.css"))
+    masthead = css[css.index(".masthead {\n  background") :][:220]
+    assert "border: 1px solid #000000" in masthead
+
+
 def test_halloween_turns_the_whole_page_dark(client, monkeypatch):
     """The one palette that overrides the content tokens, not just the brand ones."""
     monkeypatch.setattr("weather_bureau_light.app.palette_for", lambda day: "halloween")
