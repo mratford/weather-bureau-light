@@ -9,6 +9,7 @@ import pytest
 
 from weather_bureau_light.config import UK_TZ
 from weather_bureau_light.datahub import Fetched
+from weather_bureau_light.warnings import Warning
 
 from bpf_fixtures import (
     COLLECTIONS,
@@ -78,6 +79,19 @@ class FakeClient:
         pass
 
 
+class FakeWarningsClient:
+    def __init__(self) -> None:
+        self.warnings: list[Warning] = []
+        self.calls: list[tuple[float, float]] = []
+
+    def for_site(self, latitude: float, longitude: float) -> list[Warning]:
+        self.calls.append((latitude, longitude))
+        return self.warnings
+
+    def close(self) -> None:
+        pass
+
+
 def geocoder_handler(request: httpx.Request) -> httpx.Response:
     path = request.url.path
     if path.startswith("/postcodes/"):
@@ -99,6 +113,11 @@ def geocoder_handler(request: httpx.Request) -> httpx.Response:
 @pytest.fixture
 def fake_client() -> FakeClient:
     return FakeClient()
+
+
+@pytest.fixture
+def fake_warnings() -> FakeWarningsClient:
+    return FakeWarningsClient()
 
 
 @pytest.fixture
@@ -128,10 +147,12 @@ def geocoder(config):
 
 
 @pytest.fixture
-def service(config, fake_client, geocoder):
+def service(config, fake_client, fake_warnings, geocoder):
     from weather_bureau_light.service import ForecastService
 
-    return ForecastService(config, client=fake_client, geocoder=geocoder)
+    return ForecastService(
+        config, client=fake_client, geocoder=geocoder, warnings_client=fake_warnings
+    )
 
 
 @pytest.fixture

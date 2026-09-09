@@ -20,6 +20,10 @@ load_dotenv(PROJECT_ROOT / ".env")
 BASE_URL_V2 = "https://data.hub.api.metoffice.gov.uk/mo-blended-prob-forecast-feature-svc/2.0.0"
 BASE_URL_V1 = "https://data.hub.api.metoffice.gov.uk/mo-site-specific-blended-probabilistic-forecast/1.0.0"
 
+# NSWWS is a separate Weather DataHub product. Its Atom feed points to the current
+# warnings snapshot, so callers only need this stable service root.
+NSWWS_BASE_URL = "https://data.hub.api.metoffice.gov.uk/nswws/v1.1"
+
 # Confirmed live via scripts/discover.py. Note these differ from the ids in the Met
 # Office's own published sample client, which still names them improver-*-spot-uk.
 PERCENTILES_COLLECTION = "uk-spot-percentiles"
@@ -61,6 +65,11 @@ class Config:
     """
     site_catalogue_ttl: int
     default_site: str | None
+    # The warnings subscription is optional so an installation with only the forecast
+    # key continues to work; the page simply has no warnings in that case.
+    nswws_api_key: str = ""
+    nswws_base_url: str = NSWWS_BASE_URL
+    warnings_cache_ttl: int = 60
 
     @classmethod
     def from_env(cls) -> Config:
@@ -77,4 +86,7 @@ class Config:
             cache_ttl=int(os.environ.get("WBL_CACHE_TTL", "900")),
             site_catalogue_ttl=int(os.environ.get("WBL_SITE_TTL", str(7 * 24 * 3600))),
             default_site=os.environ.get("WBL_DEFAULT_SITE") or None,
+            nswws_api_key=os.environ.get("METOFFICE_NSWWS_API_KEY", "").strip(),
+            nswws_base_url=os.environ.get("WBL_NSWWS_BASE_URL", NSWWS_BASE_URL).rstrip("/"),
+            warnings_cache_ttl=int(os.environ.get("WBL_WARNINGS_TTL", "60")),
         )

@@ -60,7 +60,10 @@ def create_app(config: Config | None = None, service: ForecastService | None = N
 
         data = service.forecast(site)
         selected = data.day(request.args.get("date"))
-        return render_template("forecast.html", forecast=data, day=selected, site=site)
+        warnings = service.warnings(site)
+        return render_template(
+            "forecast.html", forecast=data, day=selected, site=site, warnings=warnings
+        )
 
     @app.route("/healthz")
     def healthz():

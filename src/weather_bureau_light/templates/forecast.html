@@ -20,6 +20,34 @@
 </p>
 {% endif %}
 
+{% if warnings %}
+<section class="weather-warnings" aria-labelledby="warnings-heading">
+  <h2 id="warnings-heading">Met Office Weather Warnings</h2>
+  {% for warning in warnings %}
+  <article class="weather-warning warning-level-{{ warning.level|lower }}">
+    <p class="weather-warning-heading">
+      <strong>{{ warning.level|title }} warning{% if warning.weather_label %}: {{ warning.weather_label }}{% endif %}</strong>
+    </p>
+    <h3>{{ warning.headline }}</h3>
+    {% if warning.valid_from or warning.valid_to %}
+    <p class="weather-warning-valid">
+      {% if warning.valid_from %}From {{ warning.valid_from.strftime('%H:%M on %-d %b') }}{% endif %}
+      {% if warning.valid_to %} until {{ warning.valid_to.strftime('%H:%M on %-d %b') }}{% endif %}
+    </p>
+    {% endif %}
+    {% if warning.further_details %}<p>{{ warning.further_details }}</p>{% endif %}
+    {% if warning.what_to_expect %}
+    <p><strong>What to expect</strong></p>
+    <ul>{% for item in warning.what_to_expect %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if warning.what_should_i_do %}
+    <p><strong>What should I do?</strong> {{ warning.what_should_i_do }}</p>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
 <h1 class="place">{{ site.name }}{% if site.region %} <span class="region">({{ site.region }})</span>{% endif %}</h1>
 
 {% if forecast.issued %}

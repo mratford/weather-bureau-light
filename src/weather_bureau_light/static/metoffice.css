@@ -146,6 +146,26 @@ body {
   background: var(--warn-bg); border-left: 4px solid var(--warn); color: var(--warn);
 }
 
+.weather-warnings { margin: 0 0 1.25rem; }
+.weather-warnings > h2 {
+  margin: 0; padding: 0.6rem 0.85rem; font-size: 1.1rem;
+  background: var(--warn); color: var(--warn-bg);
+}
+.weather-warning {
+  margin: 0; padding: 0.75rem 0.85rem; background: var(--warn-bg);
+  border: 1px solid var(--warn); border-top: 0; color: var(--ink);
+}
+.weather-warning + .weather-warning { border-top: 1px solid var(--warn); }
+.weather-warning h3 { margin: 0.15rem 0 0.3rem; font-size: 1rem; }
+.weather-warning p { margin: 0.35rem 0; }
+.weather-warning ul { margin: 0.25rem 0 0.65rem; padding-left: 1.25rem; }
+.weather-warning-heading { margin-top: 0 !important; color: var(--warn); }
+.weather-warning-valid { color: var(--ink-soft); font-size: 0.85rem; }
+.warning-level-red { border-color: #a4262c; }
+.warning-level-red .weather-warning-heading { color: #a4262c; }
+.warning-level-amber { border-color: #a15c00; }
+.warning-level-amber .weather-warning-heading { color: #a15c00; }
+
 .error-box {
   padding: 0.85rem 1rem; background: var(--error-bg);
   border-left: 4px solid var(--error); color: var(--error);

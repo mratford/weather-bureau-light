@@ -18,6 +18,7 @@ from .datahub import DataHubClient, DataHubError, DiskCache
 from .geocode import Geocoder, Place
 from .parameters import PERCENTILE_FIELDS, PROBABILITY_FIELDS
 from .sites import Site, SiteCatalogue, haversine_km
+from .warnings import Warning, WarningsClient, WarningsError
 
 log = logging.getLogger(__name__)
 
@@ -37,16 +38,36 @@ class ForecastService:
         config: Config,
         client: DataHubClient | None = None,
         geocoder: Geocoder | None = None,
+        warnings_client: WarningsClient | None = None,
     ) -> None:
         self.config = config
         self.client = client or DataHubClient(config)
         self.geocoder = geocoder or Geocoder(DiskCache(config.cache_dir))
+        # Custom forecast clients are used by tests and offline callers; do not make
+        # them unexpectedly reach out to the live warnings service.
+        self.warnings_client = warnings_client or (
+            WarningsClient(config) if client is None else None
+        )
         self._catalogue: SiteCatalogue | None = None
         self._resolutions: dict[str, parameters.Resolution] = {}
 
     def close(self) -> None:
         self.client.close()
         self.geocoder.close()
+        if self.warnings_client is not None:
+            self.warnings_client.close()
+
+    def warnings(self, site: Site) -> list[Warning]:
+        """Return live warnings whose impact polygon contains the selected site."""
+        if self.warnings_client is None:
+            return []
+        try:
+            return self.warnings_client.for_site(site.latitude, site.longitude)
+        except WarningsError as exc:
+            # A warning outage must not take down the forecast page. Failing closed is
+            # safer than displaying a stale warning as though it were still current.
+            log.warning("weather warnings unavailable: %s", exc)
+            return []
 
     @property
     def catalogue(self) -> SiteCatalogue:

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime
 from dataclasses import replace
+
+from weather_bureau_light.config import UK_TZ
+from weather_bureau_light.warnings import Warning
 
 
 def text(response) -> str:
@@ -70,6 +74,30 @@ def test_forecast_page_renders(client):
     body = text(response)
     assert "Brentwood" in body
     assert "forecast site" in body or "Brentwood" in body
+
+
+def test_weather_warning_for_current_site_is_rendered(client, fake_warnings):
+    fake_warnings.warnings.append(
+        Warning(
+            weather_types=("RAIN",),
+            level="YELLOW",
+            headline="Heavy rain may cause some disruption",
+            valid_from=datetime(2026, 8, 15, 12, tzinfo=UK_TZ),
+            valid_to=datetime(2026, 8, 15, 20, tzinfo=UK_TZ),
+            further_details="Rain is expected to be persistent.",
+            what_to_expect=("Some surface water is possible.",),
+            what_should_i_do="Take care when travelling.",
+        )
+    )
+    body = text(client.get("/forecast/00350584"))
+    assert "Met Office Weather Warnings" in body
+    assert "Heavy rain may cause some disruption" in body
+    assert "What to expect" in body
+
+
+def test_no_weather_warning_block_when_current_site_has_none(client):
+    body = text(client.get("/forecast/00350584"))
+    assert "Met Office Weather Warnings" not in body
 
 
 def test_all_expected_rows_present(client):
