@@ -1,7 +1,7 @@
-"""Tests for parameter-name resolution.
+"""Tests for resolving API parameter names.
 
 Exact BPF parameter names are not published, so these cover both naming conventions
-the service is known to mix (camelCase in CoverageJSON, snake_case CF names).
+used by the service: camelCase in CoverageJSON and snake_case CF names.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ def test_resolves_snake_case_names():
 
 
 def test_temperature_and_feels_like_do_not_collide():
-    """Both match 'temperature'; each must claim a distinct parameter."""
+    """Both fields match 'temperature' but must use different parameters."""
     result = resolve(CAMEL, PERCENTILE_FIELDS)
     assert result.mapping["temperature"] != result.mapping["feels_like"]
 
@@ -97,6 +97,6 @@ def test_field_by_key():
 
 
 def test_weather_code_is_not_probabilistic():
-    """The symbol is deterministic even inside the percentiles collection."""
+    """The symbol is deterministic even in the percentile collection."""
     assert parameters.field_by_key("weather_code").probabilistic is False
     assert parameters.field_by_key("temperature").probabilistic is True

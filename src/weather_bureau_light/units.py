@@ -1,4 +1,4 @@
-"""Conversions from the API's SI units to the units the old Met Office page showed.
+"""Convert API SI units to the units shown by the former Met Office page.
 
 The BPF API returns Kelvin, m/s, Pa and metres. The forecast table showed degrees
 Celsius, mph, hPa and visibility bands.
@@ -12,7 +12,7 @@ KELVIN_OFFSET = 273.15
 MS_TO_MPH = 2.236936
 PA_TO_HPA = 0.01
 
-# The Met Office bolds gusts at or above 25 knots on the forecast table.
+# Gusts at or above 25 knots are bold in the forecast table.
 STRONG_GUST_MPH = 29
 
 COMPASS_POINTS = (
@@ -34,14 +34,14 @@ def pa_to_hpa(value: float | None) -> float | None:
 
 
 def fraction_to_percent(value: float | None) -> float | None:
-    """Probabilities come back as 0-1 in some parameters and 0-100 in others."""
+    """Convert probabilities represented as either 0-1 or 0-100."""
     if value is None:
         return None
     return value * 100 if value <= 1.0 else value
 
 
 def compass_point(degrees: float | None) -> str | None:
-    """Meteorological wind direction (the direction the wind blows *from*)."""
+    """Return the meteorological wind direction, from which the wind blows."""
     if degrees is None:
         return None
     index = int((degrees % 360) / 22.5 + 0.5) % 16
@@ -54,7 +54,7 @@ class Band:
     label: str
 
 
-# Ranges as published in the Met Office forecast key.
+# Visibility ranges from the Met Office forecast key.
 VISIBILITY_BANDS = (
     (1_000, Band("VP", "Very poor")),
     (4_000, Band("P", "Poor")),

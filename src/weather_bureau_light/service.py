@@ -1,4 +1,4 @@
-"""Ties the client, geocoder, parameter resolution and model assembly together."""
+"""Connect the client, geocoder, parameter resolution, and model assembly."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class SearchHit:
-    """A place the user searched for, paired with the spot site that serves it."""
+    """A searched place paired with the spot site that serves it."""
 
     place: Place
     site: Site
@@ -43,8 +43,7 @@ class ForecastService:
         self.config = config
         self.client = client or DataHubClient(config)
         self.geocoder = geocoder or Geocoder(DiskCache(config.cache_dir))
-        # Custom forecast clients are used by tests and offline callers; do not make
-        # them unexpectedly reach out to the live warnings service.
+        # Test and offline clients should not make unexpected live warning requests.
         self.warnings_client = warnings_client or (
             WarningsClient(config) if client is None else None
         )
@@ -58,14 +57,14 @@ class ForecastService:
             self.warnings_client.close()
 
     def warnings(self, site: Site) -> list[Warning]:
-        """Return live warnings whose impact polygon contains the selected site."""
+        """Return current warnings whose impact polygon contains the selected site."""
         if self.warnings_client is None:
             return []
         try:
             return self.warnings_client.for_site(site.latitude, site.longitude)
         except WarningsError as exc:
-            # A warning outage must not take down the forecast page. Failing closed is
-            # safer than displaying a stale warning as though it were still current.
+            # A warning outage should not prevent the forecast page from loading.
+            # Returning no warnings is safer than displaying an outdated warning.
             log.warning("weather warnings unavailable: %s", exc)
             return []
 
@@ -78,7 +77,7 @@ class ForecastService:
         return self._catalogue
 
     def name_site(self, site: Site) -> Site:
-        """Attach a human-readable name, which the forecast API does not supply."""
+        """Attach a human-readable name, which the forecast API does not provide."""
         if site.name:
             return site
         place = self.geocoder.reverse(site.latitude, site.longitude)
@@ -89,10 +88,9 @@ class ForecastService:
         return None if site is None else self.name_site(site)
 
     def default_site(self) -> Site | None:
-        """Resolve WBL_DEFAULT_SITE, which may be a spot-site id or a place name.
+        """Resolve WBL_DEFAULT_SITE as a spot-site id or place name.
 
-        The catalogue is tried first so existing ids keep working without having to
-        guess at their format; anything it does not know is geocoded like a search.
+        Try the catalogue first so known ids continue to work; geocode other values.
         """
         configured = self.config.default_site
         if configured:
@@ -104,14 +102,13 @@ class ForecastService:
                     log.info("default site %r resolved to %s", configured, site.display_name)
             if site is not None:
                 return self.name_site(site)
-            # Place names are ambiguous and ids are unguessable, so say so rather than
-            # leaving a typo looking like the default simply not working.
+            # Explain an invalid location instead of silently using the default.
             log.warning("WBL_DEFAULT_SITE=%r matched no site, falling back", configured)
         nearest = self.catalogue.nearest(DEFAULT_LATITUDE, DEFAULT_LONGITUDE)
         return None if nearest is None else self.name_site(nearest)
 
     def search(self, query: str, limit: int = 10) -> list[SearchHit]:
-        """Geocode the query, then map each place onto its nearest spot site."""
+        """Geocode a query and map each result to its nearest spot site."""
         hits: list[SearchHit] = []
         seen: set[str] = set()
         for place in self.geocoder.search(query, limit=limit):
@@ -131,7 +128,7 @@ class ForecastService:
         return hits
 
     def _resolution(self, collection_id: str, specs) -> parameters.Resolution:
-        """Match the table's fields against the parameter names this collection reports."""
+        """Match the table fields against the collection's parameter names."""
         if collection_id in self._resolutions:
             return self._resolutions[collection_id]
 
@@ -151,8 +148,8 @@ class ForecastService:
     def _load(self, collection_id: str, site: Site, specs):
         resolution = self._resolution(collection_id, specs)
         wanted = resolution.all_names()
-        # Ask only for the parameters the table shows: the full response is ~1 MB per
-        # collection, and most of the 77 parameters are never rendered.
+        # Request only fields shown in the table; most of the collection's parameters
+        # are not rendered.
         fetched = self.client.forecast(collection_id, site.id, wanted or None)
         coverages = covjson.parse_collection(fetched.payload)
 
@@ -177,11 +174,10 @@ class ForecastService:
             )
             fetches.append(probability_fetch)
         except (DataHubError, covjson.CovJsonError) as exc:
-            # The chance-of-precipitation row is worth losing rather than the whole page.
+            # The forecast page can still be used without the precipitation row.
             log.warning("probabilities unavailable, precipitation row will be blank: %s", exc)
 
-        # Report the oldest of the two collections rather than an average or the newest,
-        # so the page never claims to be fresher than its stalest ingredient.
+        # Use the older retrieval time so the page is not fresher than either collection.
         return model.build(
             site=site,
             percentiles=percentiles,

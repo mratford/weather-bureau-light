@@ -1,4 +1,4 @@
-"""Client and small geometry helpers for the Met Office NSWWS API."""
+"""Client and geometry helpers for the Met Office NSWWS API."""
 
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ ATOM = "{http://www.w3.org/2005/Atom}"
 
 
 class WarningsError(RuntimeError):
-    """The warnings service could not provide a valid response."""
+    """Raised when the warnings service returns an invalid response."""
 
 
 @dataclass(frozen=True)
 class Warning:
-    """A live warning whose polygon contains the selected forecast site."""
+    """A current warning whose polygon contains the selected forecast site."""
 
     weather_types: tuple[str, ...]
     level: str
@@ -57,7 +57,7 @@ def _point_on_segment(lon: float, lat: float, a: list[float], b: list[float]) ->
 
 
 def _point_in_ring(lon: float, lat: float, ring: Any) -> bool:
-    """Return whether a longitude/latitude point is in a GeoJSON linear ring."""
+    """Return whether a longitude/latitude point lies inside a GeoJSON ring."""
     if not isinstance(ring, list) or len(ring) < 3:
         return False
     points = [p for p in ring if isinstance(p, list) and len(p) >= 2]
@@ -75,7 +75,7 @@ def _point_in_ring(lon: float, lat: float, ring: Any) -> bool:
 
 
 def _point_in_geometry(lon: float, lat: float, geometry: Any) -> bool:
-    """Handle the MultiPolygon geometry used by every NSWWS warning."""
+    """Check the MultiPolygon geometry used by NSWWS warnings."""
     if not isinstance(geometry, dict) or geometry.get("type") != "MultiPolygon":
         return False
     coordinates = geometry.get("coordinates")
@@ -123,7 +123,7 @@ def _parse_warning(feature: Any) -> Warning | None:
 
 
 class WarningsClient:
-    """Fetch and cache the current NSWWS snapshot, then select warnings at a point."""
+    """Fetch and cache the current NSWWS snapshot, then filter it for a point."""
 
     def __init__(self, config: Config, client: httpx.Client | None = None) -> None:
         self.config = config

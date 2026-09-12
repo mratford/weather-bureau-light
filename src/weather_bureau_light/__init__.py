@@ -1,4 +1,4 @@
-"""A local rebuild of the old Met Office forecast page."""
+"""A local version of the former Met Office forecast page."""
 
 from __future__ import annotations
 

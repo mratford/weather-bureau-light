@@ -2,8 +2,7 @@
 
 Authentication is an `apikey` request header (not Bearer, not a query parameter).
 
-The free tier is capped per day, so every response goes through a disk cache. Without
-it a handful of browser reloads during development will exhaust the daily allowance.
+The free tier has a daily limit, so responses are stored in a disk cache.
 """
 
 from __future__ import annotations
@@ -25,21 +24,21 @@ log = logging.getLogger(__name__)
 
 
 class DataHubError(RuntimeError):
-    """An API request failed in a way the caller should surface to the user."""
+    """Raised when an API request fails."""
 
 
 class AuthError(DataHubError):
-    """The key was rejected, or is not subscribed to this product."""
+    """Raised when the key is rejected or lacks the required subscription."""
 
 
 def _local(stamp: float) -> datetime:
-    """An epoch timestamp as a UK-local aware datetime, ready to render."""
+    """Convert an epoch timestamp to an aware UK-local datetime."""
     return datetime.fromtimestamp(stamp, timezone.utc).astimezone(UK_TZ)
 
 
 @dataclass(frozen=True)
 class CacheEntry:
-    """A cached payload and the moment it was written."""
+    """A cached payload and its write time."""
 
     payload: Any
     stored_at: float
@@ -47,11 +46,10 @@ class CacheEntry:
 
 @dataclass(frozen=True)
 class Fetched:
-    """A payload together with when it was retrieved and whether it is a fallback.
+    """A payload with its retrieval time and fallback status.
 
-    The age of a response cannot be recovered once it has been unwrapped from the cache,
-    so it travels alongside it. This is what lets the page distinguish live data from a
-    stale fallback, and report the data's own time rather than the time it was rendered.
+    The retrieval time is kept with the payload so the page can distinguish live data
+    from a stale fallback and report when the data was obtained.
     """
 
     payload: Any
@@ -70,7 +68,7 @@ class DiskCache:
     def get(
         self, key: str, ttl: int, hour_aligned: bool = False, floor: int = 300
     ) -> Any | None:
-        """The cached payload, or None. Callers that need its age use get_entry."""
+        """Return the cached payload, or None if it is unavailable."""
         entry = self.get_entry(key, ttl, hour_aligned=hour_aligned, floor=floor)
         return None if entry is None else entry.payload
 
@@ -85,20 +83,18 @@ class DiskCache:
         except (OSError, json.JSONDecodeError):
             return None
         if not isinstance(envelope, dict) or "stored_at" not in envelope:
-            return None  # Written by an older version; treat as a miss.
+            return None  # Older cache format; treat it as a miss.
 
         stored_at = envelope["stored_at"]
         now = time.time()
         age = now - stored_at
 
         if hour_aligned:
-            # The forecast rolls on the hour: its time axis advances one step and the
-            # leading columns drop off. Expiring on the same boundary keeps the table
-            # from showing hours that have already passed, and costs at most 24
-            # refetches a day rather than the 96 a 15-minute TTL would.
+            # The forecast advances on the hour. Expire the cache at that boundary so
+            # the table does not retain hours that have already passed.
             crossed_hour = int(now // 3600) != int(stored_at // 3600)
-            # A fetch at 09:59 would otherwise expire a minute later; the floor stops
-            # that thrash without letting the data drift into the past.
+            # Keep a small minimum age so a fetch just before the boundary is not
+            # immediately replaced.
             if crossed_hour and age >= floor:
                 log.debug("cache crossed the hour boundary (%.0fs old): %s", age, key)
                 return None
@@ -112,10 +108,9 @@ class DiskCache:
     def set(self, key: str, value: Any) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
         path = self._path(key)
-        # The write time is recorded in the file rather than read back from its mtime,
-        # which a copy or a backup restore would silently reset.
+        # Store the write time in the file so copying or restoring it does not change it.
         envelope = {"stored_at": time.time(), "payload": value}
-        # Write via a temp file so a crash mid-write cannot leave corrupt JSON.
+        # Replace the cache atomically so an interrupted write cannot leave bad JSON.
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(envelope))
         tmp.replace(path)
@@ -133,8 +128,7 @@ class DataHubClient:
         )
         self._base_url_checked = False
         self._instances: dict[str, str] = {}
-        # Recorded as requests happen so /healthz can report on the API without
-        # spending a call of its own to ask.
+        # These values let /healthz report API status without making another request.
         self.last_success_at: datetime | None = None
         self.last_failure_at: datetime | None = None
         self.last_failure: str | None = None
@@ -190,7 +184,7 @@ class DataHubClient:
         ttl: int | None = None,
         hour_aligned: bool = False,
     ) -> Any:
-        """The payload alone. Callers that render the data's age use fetch()."""
+        """Return only the payload; use fetch() when its age is needed."""
         return self.fetch(path, params, ttl=ttl, hour_aligned=hour_aligned).payload
 
     def fetch(
@@ -212,9 +206,8 @@ class DataHubClient:
         except DataHubError as exc:
             self.last_failure_at = _local(time.time())
             self.last_failure = str(exc)
-            # Prefer stale data over an error page: a forecast a few hours old is far
-            # more useful than nothing when the quota is spent or the API is down.
-            # The page says so, so an outage cannot masquerade as a fresh forecast.
+            # A stale forecast is still useful during an outage, provided the page
+            # identifies it as stale.
             stale = self.cache.get_entry(cache_key, ttl=10**9)
             if stale is not None:
                 log.warning("serving stale cache for %s", path)
@@ -227,10 +220,9 @@ class DataHubClient:
         return Fetched(payload, retrieved_at=_local(now))
 
     def ensure_base_url(self) -> str:
-        """Pick a service version this key is subscribed to.
+        """Choose a service version accepted by this key.
 
-        Two versions are live and keys are not always valid for both, so fall back
-        rather than failing outright.
+        Two versions are live, and a key may be valid for only one of them.
         """
         if self._base_url_checked:
             return self.base_url
@@ -257,12 +249,10 @@ class DataHubClient:
         return None
 
     def instance(self, collection_id: str) -> str:
-        """The instance that carries the data. Only one ("blended") exists today, but
-        it is resolved rather than hardcoded so a rename does not break the app."""
+        """Return the data instance, resolving its id from the collection."""
         if collection_id in self._instances:
             return self._instances[collection_id]
-        # The instance's temporal extent rolls with the forecast, so it expires on the
-        # same boundary; otherwise this costs more calls than the forecast itself.
+        # The instance changes with the forecast, so use the same hour-aligned cache.
         doc = self.get(f"/collections/{collection_id}/instances", hour_aligned=True)
         ids = [i["id"] for i in doc.get("instances", []) if isinstance(i, dict) and "id" in i]
         instance = ids[-1] if ids else DEFAULT_INSTANCE
@@ -279,8 +269,7 @@ class DataHubClient:
     def forecast(
         self, collection_id: str, location_id: str, parameters: list[str] | None = None
     ) -> Fetched:
-        """The forecast document, wrapped with its age: this is the one response the
-        page renders, so it is the one whose freshness the reader needs told."""
+        """Return the forecast document together with its retrieval time."""
         instance = self.instance(collection_id)
         params: dict[str, str] = {}
         if parameters:

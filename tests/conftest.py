@@ -1,4 +1,4 @@
-"""Shared pytest fixtures. Synthetic API documents live in bpf_fixtures.py."""
+"""Shared pytest fixtures and synthetic API documents."""
 
 from __future__ import annotations
 
@@ -22,15 +22,17 @@ from bpf_fixtures import (
     build_probability_doc,
 )
 
+TEST_NOW = datetime(2026, 8, 15, 17, 49, tzinfo=UK_TZ)
+
 
 class FakeClient:
-    """Stands in for DataHubClient, recording calls so caching can be asserted."""
+    """Test double for DataHubClient that records calls for cache tests."""
 
     base_url = "https://example.invalid/fake/2.0.0"
 
     def __init__(self) -> None:
         self.calls: list[str] = []
-        # Set by tests that need the app to behave as though the API were down.
+        # Tests set this to simulate an API outage.
         self.stale = False
         self.retrieved_at: datetime | None = None
         self.last_success_at: datetime | None = datetime.now(UK_TZ)
@@ -38,7 +40,7 @@ class FakeClient:
         self.last_failure: str | None = None
 
     def serving_stale(self, age_hours: float, message: str = "HTTP 403") -> None:
-        """Behave as the real client does when a fetch fails but a cache exists."""
+        """Simulate a failed fetch when a cached response exists."""
         now = datetime.now(UK_TZ)
         self.stale = True
         self.retrieved_at = now - timedelta(hours=age_hours)
@@ -99,7 +101,7 @@ def geocoder_handler(request: httpx.Request) -> httpx.Response:
         if path.rsplit("/", 1)[-1].upper() == wanted:
             return httpx.Response(200, json=POSTCODE_RESPONSE)
         return httpx.Response(404, json={"status": 404, "result": None})
-    if path == "/postcodes":  # reverse geocoding
+    if path == "/postcodes":  # Reverse geocoding.
         return httpx.Response(200, json=REVERSE_RESPONSE)
     if path == "/places":
         query = (request.url.params.get("q") or "").lower()
@@ -156,9 +158,11 @@ def service(config, fake_client, fake_warnings, geocoder):
 
 
 @pytest.fixture
-def client(config, service):
+def client(config, service, monkeypatch):
     from weather_bureau_light.app import create_app
+    from weather_bureau_light import model
 
+    monkeypatch.setattr(model, "_now", lambda tz: TEST_NOW.astimezone(tz))
     app = create_app(config=config, service=service)
     app.config["TESTING"] = True
     return app.test_client()

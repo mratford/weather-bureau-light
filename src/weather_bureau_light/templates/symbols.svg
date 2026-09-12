@@ -1,5 +1,5 @@
-{# Weather symbols drawn for this project. The Met Office's own artwork is Crown
-   copyright, so these are lookalikes keyed by significant weather code. #}
+{# Weather symbols drawn for this project. The Met Office artwork is Crown copyright,
+   so these are original symbols keyed by significant weather code. #}
 
 {% macro defs() %}
 <svg class="sprite-defs" aria-hidden="true" focusable="false" width="0" height="0">
@@ -132,7 +132,7 @@
 </svg>
 {% endmacro %}
 
-{# Night variants exist for some sprites only; fall back to the day artwork. #}
+{# Some sprites have no night variant; use the day artwork in those cases. #}
 {% set HAS_NIGHT = ['clear', 'partly-cloudy', 'shower-light', 'shower-heavy',
                     'sleet', 'snow-light', 'snow-heavy', 'hail', 'thunder'] %}
 

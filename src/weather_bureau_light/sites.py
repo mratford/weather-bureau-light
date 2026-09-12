@@ -1,7 +1,7 @@
-"""The spot-site catalogue: roughly 7,200 UK, Irish and Western European locations.
+"""The spot-site catalogue of roughly 7,200 UK, Irish, and Western European locations.
 
-The BPF API addresses forecasts by site id, not by free coordinates, so the catalogue
-has to be fetched, cached and searched locally to offer a location box.
+The BPF API addresses forecasts by site id rather than arbitrary coordinates, so the
+catalogue is fetched, cached, and searched locally for the location box.
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from .datahub import DataHubClient
 class Site:
     """A BPF spot site.
 
-    The API publishes only an id and coordinates, so `name` is usually filled in later
-    by reverse geocoding rather than coming from the forecast service.
+    The API provides only an id and coordinates, so `name` is usually added by
+    reverse geocoding.
     """
 
     id: str
@@ -41,14 +41,14 @@ class Site:
 
 
 def _fold(text: str) -> str:
-    """Casefold and strip accents so 'Ynys Mon' matches 'Ynys Môn'."""
+    """Casefold and remove accents so equivalent names match."""
     decomposed = unicodedata.normalize("NFKD", text)
     stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
     return re.sub(r"[^a-z0-9 ]+", " ", stripped.casefold()).strip()
 
 
 def parse_locations(payload: dict[str, Any]) -> list[Site]:
-    """Read the GeoJSON FeatureCollection the /locations endpoint returns."""
+    """Read the GeoJSON FeatureCollection returned by /locations."""
     sites: list[Site] = []
     for feature in payload.get("features", []):
         if not isinstance(feature, dict):
@@ -62,7 +62,7 @@ def parse_locations(payload: dict[str, Any]) -> list[Site]:
         if site_id is None:
             continue
 
-        # Properties are empty on the live service, but honour a name if one appears.
+        # Live properties are usually empty, but use a supplied name when present.
         name = props.get("name") or props.get("locationName") or props.get("title")
         sites.append(
             Site(
@@ -105,7 +105,7 @@ class SiteCatalogue:
         return self._by_id.get(site_id)
 
     def search(self, query: str, limit: int = 20) -> list[Site]:
-        """Rank by match quality: exact, then prefix, then substring."""
+        """Rank matches as exact, prefix, then substring."""
         needle = _fold(query)
         if not needle:
             return []
@@ -117,7 +117,7 @@ class SiteCatalogue:
             elif folded.startswith(needle):
                 rank = 1
             elif re.search(rf"\b{re.escape(needle)}", folded):
-                rank = 2  # matches at a word boundary inside the name
+                rank = 2  # Match at a word boundary within the name.
             elif needle in folded:
                 rank = 3
             else:

@@ -1,4 +1,4 @@
-"""Tests for fetching and selecting NSWWS warnings."""
+"""Tests for fetching and filtering NSWWS warnings."""
 
 from __future__ import annotations
 

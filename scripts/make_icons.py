@@ -5,15 +5,13 @@ Run after changing the artwork below:
     uv run python scripts/make_icons.py
 
 The icons are committed, so this is not needed to run the app. iOS ignores SVG for
-`apple-touch-icon` and will not composite a transparent one — it fills the gaps with
-black — so these are opaque PNGs, drawn here rather than converted from the sprite in
-templates/symbols.svg. ImageMagick's built-in SVG renderer mangles that file (it drops
-the rotated rays), and a real SVG rasteriser is not something this project should need
-installed just to produce four small images.
+`apple-touch-icon` and fills transparent areas with black, so these are opaque PNGs.
+They are drawn here rather than converted from templates/symbols.svg because the
+available SVG renderer does not preserve the rotated rays.
 
-Shapes are signed distance fields: negative inside, positive outside, measured in pixels.
-Combining them with min() unions them, and the distance doubles as the coverage value an
-antialiased edge needs, which is what keeps the curves smooth without supersampling.
+Shapes are signed distance fields: negative inside and positive outside, measured in
+pixels. Taking the minimum combines shapes, and the distance supplies the coverage
+value for antialiased edges.
 """
 
 from __future__ import annotations
@@ -25,19 +23,18 @@ from pathlib import Path
 
 STATIC = Path(__file__).resolve().parents[1] / "src" / "weather_bureau_light" / "static"
 
-# Matches the sprite in templates/symbols.svg, so the icon and the page agree.
+# Keep this design consistent with templates/symbols.svg.
 SUN = (0xF6, 0xA6, 0x23)
 CLOUD = (0xD7, 0xDE, 0xE7)
 CLOUD_EDGE = (0x9F, 0xAD, 0xBF)
 PAGE = (0xFF, 0xFF, 0xFF)
 
-# The artwork is described in a 24x24 grid, as the weather symbols are, and scaled to
-# whatever size is being written.
+# Describe the artwork on the same 24x24 grid as the weather symbols, then scale it
+# to the requested output size.
 GRID = 24.0
 
-# The shapes below were laid out relative to each other rather than to the grid, so the
-# finished drawing is shifted to sit centred. Its extent runs from the tip of the
-# top-left ray (1.7, 1.5) to the cloud's lower right (18.5, 18.1).
+# The shapes are positioned relative to one another, then shifted to centre the drawing.
+# The bounds run from the top-left ray (1.7, 1.5) to the cloud's lower right (18.5, 18.1).
 ART_DX = 1.9
 ART_DY = 2.2
 
@@ -47,7 +44,7 @@ def circle(px: float, py: float, cx: float, cy: float, r: float) -> float:
 
 
 def capsule(px, py, ax, ay, bx, by, r) -> float:
-    """A thick line with rounded ends, for the sun's rays."""
+    """Return a thick line with rounded ends for a sun ray."""
     dx, dy = bx - ax, by - ay
     span = dx * dx + dy * dy
     t = 0.0 if span == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / span))
@@ -62,7 +59,7 @@ def rounded_box(px, py, cx, cy, half_w, half_h, r) -> float:
 
 
 def sun_field(x: float, y: float) -> float:
-    """A disc with eight spokes around it."""
+    """Return a disc with eight spokes."""
     cx, cy, r = 8.4, 8.2, 3.3
     d = circle(x, y, cx, cy, r)
     for step in range(8):
@@ -76,11 +73,10 @@ def sun_field(x: float, y: float) -> float:
 
 
 def cloud_field(x: float, y: float) -> float:
-    """Three billows over a flat-bottomed base, unioned into one silhouette.
+    """Return three billows over a flat-bottomed base as one silhouette.
 
-    Every part has to reach exactly the same bottom edge at y=18.1. A tenth of a unit
-    of disagreement puts a visible notch in the outline, because the stroke follows the
-    union's true edge rather than any one shape's.
+    Every part must reach the same bottom edge at y=18.1. Otherwise the outline can
+    show a notch where the shapes meet.
     """
     d = circle(x, y, 11.4, 13.5, 3.9)
     d = min(d, circle(x, y, 15.6, 15.2, 2.9))
@@ -96,14 +92,14 @@ def blend(dst: list[float], index: int, colour: tuple[int, int, int], alpha: flo
 
 
 def coverage(distance: float, feather: float) -> float:
-    """Fraction of a pixel the shape covers, from its distance to the edge."""
+    """Return the fraction of a pixel covered by the shape."""
     return max(0.0, min(1.0, 0.5 - distance / feather))
 
 
 def render(size: int, background: tuple[int, int, int]) -> bytes:
     scale = size / GRID
-    feather = 1.0 / scale  # One pixel, expressed in grid units.
-    stroke = 0.22  # Half the cloud outline's width.
+    feather = 1.0 / scale  # One pixel in grid units.
+    stroke = 0.22  # Half the cloud outline width.
 
     pixels = [0.0] * (size * size * 3)
     for i in range(0, len(pixels), 3):
@@ -122,13 +118,12 @@ def render(size: int, background: tuple[int, int, int]) -> bytes:
 
             cloud = cloud_field(ax, ay)
             blend(pixels, index, CLOUD, coverage(cloud, feather))
-            # The outline straddles the silhouette's edge, so it covers the join
-            # between the billows without showing where they overlap.
+            # Centre the outline on the silhouette edge so the joins are hidden.
             blend(pixels, index, CLOUD_EDGE, coverage(abs(cloud) - stroke, feather))
 
     raw = bytearray()
     for row in range(size):
-        raw.append(0)  # PNG filter type 0 (none) for this scanline.
+        raw.append(0)  # PNG filter type 0: none.
         start = row * size * 3
         raw.extend(int(round(v)) & 0xFF for v in pixels[start : start + size * 3])
     return bytes(raw)
@@ -143,7 +138,7 @@ def write_png(path: Path, size: int, raw: bytes) -> None:
             + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
         )
 
-    header = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)  # 8-bit truecolour, no alpha.
+    header = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)  # Use 8-bit truecolour without alpha.
     path.write_bytes(
         b"\x89PNG\r\n\x1a\n"
         + chunk(b"IHDR", header)
@@ -153,7 +148,7 @@ def write_png(path: Path, size: int, raw: bytes) -> None:
 
 
 def main() -> None:
-    # 180 is what iOS asks for; 192 and 512 are the manifest sizes; 32 is the browser tab.
+    # Use the sizes required by iOS, the manifest, and the browser tab.
     for name, size in (
         ("apple-touch-icon.png", 180),
         ("icon-192.png", 192),

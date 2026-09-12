@@ -1,4 +1,4 @@
-"""Tests for the seasonal masthead: meteorological seasons, whole months."""
+"""Tests for the seasonal masthead and meteorological seasons."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def test_the_days_either_side_of_halloween_are_autumn(month, day):
 
 
 def test_a_holiday_does_not_disturb_the_season_itself():
-    """season_for stays the meteorological answer; only the palette changes."""
+    """season_for remains meteorological; only the palette changes."""
     assert season_for(date(2026, 12, 25)) == "winter"
 
 

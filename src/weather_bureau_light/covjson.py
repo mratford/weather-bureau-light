@@ -1,10 +1,8 @@
-"""Turn a CoverageJSON document into values indexed by time (and percentile).
+"""Parse CoverageJSON into values indexed by time and percentile.
 
-The subtle part is `ranges`. Each range is an NdArray whose `values` list is a
-*flattened* N-dimensional array, described by `axisNames` and `shape`. For percentile
-data there is a percentile axis alongside the time axis, so zipping `values` straight
-against the time axis silently yields wrong numbers - plausible-looking ones, which is
-worse. Everything here goes through the declared axis order instead.
+Each range contains a flattened N-dimensional array described by `axisNames` and
+`shape`. Percentile data has both a percentile axis and a time axis, so values must
+be indexed using the declared dimensions rather than paired directly with time.
 """
 
 from __future__ import annotations
@@ -18,14 +16,14 @@ log = logging.getLogger(__name__)
 
 
 class CovJsonError(ValueError):
-    """Raised when a document does not match the CoverageJSON structure we expect."""
+    """Raised when a document does not have the expected CoverageJSON structure."""
 
 
 _COORDINATE_AXES = {"x", "y", "z", "t"}
 
 
 def _parse_threshold(value: Any) -> float | None:
-    """Read a threshold axis label such as '>2.7777778E-8' or '>=213.15'."""
+    """Convert a threshold axis label such as '>2.7777778E-8' or '>=213.15'."""
     if isinstance(value, (int, float)):
         return float(value)
     if not isinstance(value, str):
@@ -37,10 +35,10 @@ def _parse_threshold(value: Any) -> float | None:
 
 
 def nearest_threshold_index(thresholds: Sequence[float], wanted: float) -> int:
-    """Index of the threshold closest to a target, compared on a log scale.
+    """Return the closest threshold index, comparing values on a log scale.
 
-    Rain-rate thresholds span many orders of magnitude (0 up to ~0.03 m/s), so a linear
-    nearest-match would collapse onto the largest values.
+    Rain-rate thresholds span several orders of magnitude, so a linear comparison
+    would favour the largest values.
     """
     import math
 
@@ -53,7 +51,7 @@ def nearest_threshold_index(thresholds: Sequence[float], wanted: float) -> int:
 
 
 def _axis_values(axis: dict[str, Any]) -> list[Any]:
-    """Read an axis, expanding the compact start/stop/num form if used."""
+    """Return axis values, expanding the compact start/stop/num form when needed."""
     if "values" in axis:
         return list(axis["values"])
     if {"start", "stop", "num"} <= axis.keys():
@@ -66,15 +64,14 @@ def _axis_values(axis: dict[str, Any]) -> list[Any]:
 
 
 def parse_time(value: str) -> datetime:
-    """Parse an ISO 8601 instant. The API uses a trailing Z that fromisoformat
-    only learned to accept in 3.11, and sometimes omits seconds."""
+    """Parse an ISO 8601 instant returned by the API."""
     text = value.replace("Z", "+00:00")
     return datetime.fromisoformat(text)
 
 
 @dataclass(frozen=True)
 class Axes:
-    """The domain axes of a coverage, in a form ranges can be indexed against."""
+    """The domain axes of a coverage, ready for indexing ranges."""
 
     times: list[datetime]
     others: dict[str, list[Any]] = field(default_factory=dict)
@@ -114,11 +111,10 @@ def parse_axes(doc: dict[str, Any]) -> Axes:
 
 
 def _strides(shape: Sequence[int], order: str = "C") -> list[int]:
-    """Strides for a flattened array.
+    """Return strides for a flattened array.
 
-    CoverageJSON specifies row-major ("C"), but the Met Office BPF service serialises
-    column-major ("F") while still declaring axisNames in row-major order, so both are
-    supported and the correct one is detected from the data. See `choose_order`.
+    CoverageJSON specifies row-major ("C"), but the BPF service uses column-major
+    ("F") while declaring row-major axis names. Both layouts are supported.
     """
     strides = [1] * len(shape)
     if order == "C":
@@ -132,7 +128,7 @@ def _strides(shape: Sequence[int], order: str = "C") -> list[int]:
 
 @dataclass(frozen=True)
 class Range:
-    """One parameter's values, addressable by named axis indices."""
+    """Values for one parameter, addressable by named axis indices."""
 
     parameter: str
     axis_names: list[str]
@@ -158,7 +154,7 @@ class Range:
         return self if order == self.order else replace(self, order=order)
 
     def at(self, **indices: int) -> Any:
-        """Look up a single value by axis name. Omitted axes must be length 1."""
+        """Look up one value by axis name; omitted axes must have length one."""
         flat = 0
         for axis, stride, size in zip(
             self.axis_names, _strides(self.shape, self.order), self.shape
@@ -172,16 +168,16 @@ class Range:
         return self.values[flat]
 
     def series(self, **fixed: int) -> list[Any]:
-        """All values along the time axis, holding the other axes fixed."""
+        """Return all time-axis values with the other axes fixed."""
         if "t" not in self.axis_names:
-            # A parameter with no time dimension: broadcast its single value.
+            # Parameters without a time dimension provide one value to repeat.
             return [self.at(**fixed)]
         length = self.shape[self.axis_names.index("t")]
         return [self.at(t=i, **fixed) for i in range(length)]
 
 
 def _violations(rng: Range, axis: str, increasing: bool) -> int:
-    """Count timesteps where values along `axis` break the expected ordering."""
+    """Count timesteps where values along `axis` violate the expected order."""
     if axis not in rng.axis_names or "t" not in rng.axis_names:
         return 0
     n_axis = rng.shape[rng.axis_names.index(axis)]
@@ -201,18 +197,16 @@ def _violations(rng: Range, axis: str, increasing: bool) -> int:
 
 
 def choose_order(rng: Range, axis: str, increasing: bool = True) -> Range:
-    """Pick the memory layout that makes the data physically possible.
+    """Choose the memory layout that best matches the data's ordering.
 
     The BPF service declares `axisNames` in row-major order but serialises the values
-    column-major, so trusting the declared order yields numbers that look plausible
-    per-timestep while being badly wrong - a 10th percentile above the 90th, for
-    instance. Percentiles must rise with percentile index and probabilities must fall
-    as the threshold rises, so the correct layout is the one that satisfies that.
+    column-major. The correct layout has increasing percentiles or decreasing
+    probabilities, as appropriate.
     """
     candidates = [rng.with_order(order) for order in ("C", "F")]
     scored = [(_violations(c, axis, increasing), c) for c in candidates]
     best_score = min(score for score, _ in scored)
-    # Ties keep the spec-compliant reading.
+    # Prefer the order declared by the specification when scores tie.
     for score, candidate in scored:
         if score == best_score:
             if candidate.order != rng.order:
@@ -247,7 +241,7 @@ def parse_ranges(doc: dict[str, Any]) -> dict[str, Range]:
 
 @dataclass(frozen=True)
 class Coverage:
-    """A parsed CoverageJSON document."""
+    """A parsed CoverageJSON document with its axes and ranges."""
 
     axes: Axes
     ranges: dict[str, Range]
@@ -258,11 +252,10 @@ class Coverage:
         return self.axes.times
 
     def percentile_axis(self) -> tuple[str, list[float]] | None:
-        """Find the percentile axis, whatever the service happens to call it.
+        """Find the percentile axis, including alternate service names.
 
-        The live UK collection names it `percentiles` and gives string values
-        ("5", "10", ...), alongside a `locationId` axis whose values are also strings -
-        so identify it by name first, then fall back to any numeric-valued axis.
+        The UK collection calls it `percentiles` and stores its values as strings.
+        If that name is absent, use the first non-coordinate axis with numeric values.
         """
         for name, values in self.axes.others.items():
             if "percentile" in name.lower():
@@ -277,10 +270,9 @@ class Coverage:
         return None
 
     def threshold_axis(self) -> tuple[str, list[float]] | None:
-        """Find a probability threshold axis.
+        """Find the axis containing probability thresholds.
 
-        Probability parameters are published against a threshold axis whose values are
-        strings like ">2.7777778E-8" (a rain rate in m/s).
+        Probability parameters use string values such as ">2.7777778E-8", in m/s.
         """
         for name, values in self.axes.others.items():
             if "threshold" not in name.lower() and not name.lower().endswith("values"):
@@ -307,25 +299,24 @@ def parse(doc: dict[str, Any]) -> Coverage:
         parameters=doc.get("parameters") or {},
     )
 
-    # Resolve the declared-vs-actual axis order against a physical invariant.
+    # Check the declared axis order against the expected value ordering.
     percentile_axis = coverage.percentile_axis()
     threshold_axis = coverage.threshold_axis()
     for name, rng in list(coverage.ranges.items()):
         if percentile_axis and percentile_axis[0] in rng.axis_names:
             coverage.ranges[name] = choose_order(rng, percentile_axis[0], increasing=True)
         elif threshold_axis and threshold_axis[0] in rng.axis_names:
-            # Probability of exceeding a threshold falls as the threshold rises.
+            # The probability of exceeding a threshold decreases as the threshold rises.
             coverage.ranges[name] = choose_order(rng, threshold_axis[0], increasing=False)
     return coverage
 
 
 @dataclass(frozen=True)
 class CoverageSet:
-    """A CoverageCollection: one coverage per parameter, each with its own domain.
+    """A CoverageCollection with one coverage per parameter and its own domain.
 
-    The live API returns this rather than a single coverage, and the domains genuinely
-    differ - hourly parameters carry ~203 timesteps where three-hourly ones carry
-    fewer - so each parameter keeps its own time axis and callers merge on timestamp.
+    The live API returns different time axes for hourly and three-hourly parameters,
+    so each parameter keeps its own axis and callers merge them by timestamp.
     """
 
     coverages: dict[str, Coverage]
@@ -342,7 +333,7 @@ class CoverageSet:
 
 
 def parse_collection(doc: dict[str, Any]) -> CoverageSet:
-    """Parse either a CoverageCollection or a single Coverage into a CoverageSet."""
+    """Parse a CoverageCollection or a single Coverage into a CoverageSet."""
     if doc.get("type") != "CoverageCollection" and "coverages" not in doc:
         coverage = parse(doc)
         return CoverageSet({name: coverage for name in coverage.ranges})
@@ -351,7 +342,7 @@ def parse_collection(doc: dict[str, Any]) -> CoverageSet:
     for entry in doc.get("coverages") or []:
         if not isinstance(entry, dict):
             continue
-        # Shared definitions may sit on the collection rather than each coverage.
+        # Shared definitions may be stored on the collection.
         merged = dict(entry)
         if "parameters" not in merged and "parameters" in doc:
             merged["parameters"] = doc["parameters"]
@@ -368,10 +359,10 @@ def parse_collection(doc: dict[str, Any]) -> CoverageSet:
 
 
 def nearest_percentile_index(percentiles: Sequence[float], wanted: float) -> int:
-    """Index of the closest available percentile.
+    """Return the index of the closest available percentile.
 
-    Collections do not all publish the same percentile set, so asking for the 50th
-    and taking whatever is nearest beats assuming a fixed list.
+    Collections do not all publish the same percentile set, so the nearest available
+    value is used instead of assuming a fixed list.
     """
     if not percentiles:
         raise CovJsonError("no percentiles available")

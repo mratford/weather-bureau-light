@@ -1,4 +1,4 @@
-"""Tests for forecast assembly: merging the two collections, units, day grouping."""
+"""Tests for forecast assembly, unit conversion, and day grouping."""
 
 from __future__ import annotations
 
@@ -21,9 +21,8 @@ from bpf_fixtures import (
 UK = ZoneInfo("Europe/London")
 SITE = Site("00350584", 51.62, 0.3088, "Brentwood", "Essex")
 
-#: Elapsed hours are dropped from the table, so these tests state where in the day they
-#: are standing. This is the first timestep the fixtures publish, which keeps every
-#: hour they build in the future and the assertions independent of the real clock.
+#: Elapsed hours are removed from the table. These tests use the first fixture
+#: timestep as the current time so their assertions do not depend on the real clock.
 NOW = datetime(2026, 8, 15, 3, 0, tzinfo=timezone.utc)
 
 
@@ -47,7 +46,7 @@ def test_all_fields_resolve(forecast):
 
 
 def test_groups_48_hours_into_days(forecast):
-    # 48 UTC hours starting midnight, shown in BST, spans three local days.
+    # Forty-eight UTC hours from midnight span three local days in BST.
     assert len(forecast.days) == 3
     assert forecast.days[0].date == date(2026, 8, 15)
 
@@ -64,7 +63,7 @@ def _long_forecast(hours: int, **kwargs) -> model.Forecast:
 
 
 def test_long_forecast_is_capped_at_seven_days():
-    """The API runs to about fourteen days; the strip shows the first seven."""
+    """The API provides about fourteen days; the strip shows the first seven."""
     forecast = _long_forecast(14 * 24)
     assert len(forecast.days) == model.MAX_DAYS == 7
     assert forecast.days[0].date == date(2026, 8, 15)
@@ -84,8 +83,8 @@ def _doc(*coverages) -> dict:
 
 
 def _mixed_resolution_forecast(with_symbols: bool = True) -> model.Forecast:
-    """Temperature every hour, weather symbol only every third - the shape the API
-    takes in the changeover around day five."""
+    """Temperature is hourly and weather symbols are every three hours, as in the
+    transition around day five."""
     from bpf_fixtures import _coverage, _times
 
     coverages = [_coverage("airTemperature1p5m", "K", _times(12, 1))]
@@ -107,12 +106,12 @@ def test_hours_without_a_weather_symbol_are_dropped():
     steps = [s for d in forecast.days for s in d.timesteps]
     assert steps, "everything was dropped"
     assert all(s.median("weather_code") is not None for s in steps)
-    # Twelve hourly columns, a symbol on every third: four survive.
+    # Twelve hourly columns with a symbol every third hour leave four columns.
     assert len(steps) == 4
 
 
 def test_dropped_hours_still_count_towards_the_day_high_and_low():
-    """Hiding a column must not move the figures on the day tab."""
+    """Removing a column must not change the figures on the day tab."""
     forecast = _mixed_resolution_forecast()
     day = forecast.days[0]
     shown = [t.median("temperature") for t in day.timesteps]
@@ -123,8 +122,8 @@ def test_dropped_hours_still_count_towards_the_day_high_and_low():
 
 
 def test_a_day_with_no_symbols_at_all_keeps_its_hours():
-    """A missing parameter is not the same as the reporting thinning out; an empty
-    table would be worse than a table with no symbol row."""
+    """A missing parameter differs from reduced reporting; keep a table with no symbol
+    row instead of returning an empty table."""
     forecast = _mixed_resolution_forecast(with_symbols=False)
     assert sum(len(d.timesteps) for d in forecast.days) == 12
 
@@ -143,7 +142,7 @@ def test_pressure_converted_to_hpa(forecast):
 
 def test_wind_converted_to_mph(forecast):
     step = forecast.days[0].timesteps[0]
-    # 4 m/s base becomes about 9 mph.
+    # A 4 m/s base becomes about 9 mph.
     assert 2 < step.median("wind_speed") < 40
 
 
@@ -159,7 +158,7 @@ def test_range_row_renders_text(forecast):
 
 
 def test_deterministic_field_has_no_range(forecast):
-    """The weather symbol carries no percentile axis, so no spread."""
+    """The weather symbol has no percentile axis and therefore no spread."""
     value = forecast.days[0].timesteps[0].value("weather_code")
     assert value.lower is None and value.upper is None
 
@@ -214,10 +213,10 @@ def test_symbol_lookup_from_code(forecast):
 
 
 def test_night_symbol_swapped_to_day_when_sun_is_up():
-    """A day/night pair reported as the night variant during daylight flips to day."""
+    """A night variant reported during daylight changes to the day variant."""
     step = model.Timestep(
         time=datetime(2026, 8, 15, 13, 0, tzinfo=UK),
-        values={"weather_code": model.Value(median=0)},  # 0 = Clear night
+        values={"weather_code": model.Value(median=0)},  # 0 = clear night.
         is_daylight=True,
     )
     assert step.symbol.night is False
@@ -226,14 +225,14 @@ def test_night_symbol_swapped_to_day_when_sun_is_up():
 def test_times_are_local(forecast):
     step = forecast.days[0].timesteps[0]
     assert step.time.tzinfo is not None
-    assert step.time.utcoffset().total_seconds() == 3600  # BST in August
+    assert step.time.utcoffset().total_seconds() == 3600  # BST in August.
 
 
 def test_day_selection_by_iso(forecast):
     second = forecast.days[1]
     assert forecast.day(second.iso).date == second.date
     assert forecast.day(None).date == forecast.days[0].date
-    # An unknown date falls back to the first day rather than erroring.
+    # An unknown date uses the first day rather than raising an error.
     assert forecast.day("1999-01-01").date == forecast.days[0].date
 
 
@@ -262,7 +261,7 @@ def test_missing_value_renders_as_none():
 
 
 def test_day_grouping_across_dst_boundary():
-    """The clocks go back on 25 Oct 2026, making that local day 25 hours long."""
+    """The clocks go back on 25 October 2026, making that local day 25 hours long."""
     from datetime import timedelta
 
     start = datetime(2026, 10, 25, 0, 0, tzinfo=timezone.utc)
@@ -286,14 +285,14 @@ def test_day_grouping_across_dst_boundary():
         now=NOW,
     )
     by_date = {d.date: len(d.timesteps) for d in forecast.days}
-    # 25 Oct starts at 00:00 UTC = 01:00 BST, so 24 UTC hours land inside it,
-    # covering local 01:00 through 24:00 without spilling into the 26th.
+    # 25 October starts at 00:00 UTC = 01:00 BST, so 24 UTC hours remain within
+    # that local day, covering 01:00 through 24:00 without reaching the 26th.
     assert by_date[date(2026, 10, 25)] == 24
     assert sum(by_date.values()) == 48
 
 
 def test_edge_timesteps_without_percentile_data_are_dropped():
-    """The two collections start an hour apart, leaving a lone probability column."""
+    """The collections start an hour apart, leaving one probability-only column."""
     from bpf_fixtures import PROBABILITY_PARAM, THRESHOLDS, build_percentile_doc
 
     prob_times = ["2026-08-15T02:00:00Z"] + [
@@ -335,20 +334,20 @@ def test_edge_timesteps_without_percentile_data_are_dropped():
         tz=UK,
         now=NOW,
     )
-    # 02:00Z precedes the percentile data, so no column should exist for it.
+    # 02:00Z precedes the percentile data, so it should not create a column.
     stamps = {s.time.astimezone(timezone.utc).isoformat() for d in forecast.days for s in d.timesteps}
     assert "2026-08-15T02:00:00+00:00" not in stamps
-    # And every rendered column has a real temperature.
+    # Every rendered column also has a temperature.
     assert all(
         s.median("temperature") is not None for d in forecast.days for s in d.timesteps
     )
 
 
-# --- Age wording ----------------------------------------------------------------
+# --- Age text -------------------------------------------------------------------
 
 
 def _aged(hours: float):
-    """A Forecast whose data was retrieved a given number of hours ago."""
+    """Return a Forecast whose data was retrieved a given number of hours ago."""
     from datetime import datetime, timedelta
 
     from weather_bureau_light.config import UK_TZ
@@ -366,13 +365,12 @@ def test_age_text_reads_in_whole_units():
 
 
 def test_age_text_counts_in_hours_past_a_day():
-    """Days only take over at 36 hours: 'yesterday afternoon' is still worth saying
-    precisely when someone is deciding whether to trust the numbers."""
+    """Use days only after 36 hours; before then, report hours."""
     assert _aged(30).age_text == "30 hours ago"
 
 
 def test_age_text_is_singular_where_it_should_be():
-    """Anything under 90 seconds is 'just now', so an hour is the first singular."""
+    """Anything under 90 seconds is 'just now'; one hour is the first singular value."""
     assert _aged(1).age_text == "1 hour ago"
     assert _aged(1 / 60).age_text == "just now"
 
@@ -383,11 +381,11 @@ def test_age_text_survives_an_unknown_issue_time():
     assert Forecast(site=None, days=[], issued=None).age_text == "an unknown time ago"
 
 
-# --- Elapsed hours --------------------------------------------------------------
+# --- Elapsed forecast hours -----------------------------------------------------
 
 
 def _day_forecast(now: datetime) -> model.Forecast:
-    """A full 48 hours of fixture data, read at a given moment."""
+    """Return 48 hours of fixture data read at a specified time."""
     return model.build(
         site=SITE,
         percentiles=covjson.parse_collection(build_percentile_doc()),
@@ -398,7 +396,7 @@ def _day_forecast(now: datetime) -> model.Forecast:
 
 
 def test_the_current_hour_is_still_shown_partway_through_it():
-    """At 17:49 the 17:00 row describes the hour being lived through."""
+    """At 17:49 the 17:00 row still describes the current hour."""
     forecast = _day_forecast(datetime(2026, 8, 15, 17, 49, tzinfo=UK))
     today = forecast.days[0]
     assert today.date == date(2026, 8, 15)
@@ -418,14 +416,14 @@ def test_the_hour_drops_off_the_moment_the_clock_turns():
 
 
 def test_later_days_keep_all_their_hours():
-    """Only today has hours behind it; tomorrow must not be trimmed."""
+    """Trim elapsed hours from today but not from tomorrow."""
     late = _day_forecast(datetime(2026, 8, 15, 22, 0, tzinfo=UK))
     early = _day_forecast(datetime(2026, 8, 15, 4, 0, tzinfo=UK))
     assert len(late.days[1].timesteps) == len(early.days[1].timesteps)
 
 
 def test_elapsed_hours_do_not_move_the_day_high_and_low():
-    """The afternoon's peak still belongs to today after the afternoon has gone."""
+    """Today's afternoon peak remains in the day summary after that hour passes."""
     morning = _day_forecast(datetime(2026, 8, 15, 4, 0, tzinfo=UK))
     evening = _day_forecast(datetime(2026, 8, 15, 21, 0, tzinfo=UK))
     assert evening.days[0].max_temp == morning.days[0].max_temp
@@ -439,14 +437,14 @@ def test_elapsed_hours_do_not_change_the_day_tab_symbol():
 
 
 def test_a_wholly_elapsed_day_is_dropped_rather_than_shown_empty():
-    """Reachable when the data being served is old enough to have run out."""
+    """Reachable when the served data is old enough that no hours remain."""
     forecast = _day_forecast(datetime(2026, 8, 16, 6, 0, tzinfo=UK))
     assert forecast.days[0].date == date(2026, 8, 16)
     assert all(d.timesteps for d in forecast.days)
 
 
 def test_defaults_to_the_real_clock_when_no_moment_is_given(monkeypatch):
-    """The application does not pass one; the seam exists for these tests."""
+    """The application omits this argument; it is available for these tests."""
     monkeypatch.setattr(
         model, "_now", lambda tz: datetime(2026, 8, 15, 17, 49, tzinfo=UK)
     )

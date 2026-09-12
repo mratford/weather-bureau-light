@@ -1,4 +1,4 @@
-"""Tests for postcodes.io geocoding, needed because BPF sites carry no names."""
+"""Tests for postcodes.io geocoding, which supplies names for BPF sites."""
 
 from __future__ import annotations
 
@@ -95,5 +95,5 @@ def test_404_is_treated_as_no_result(tmp_path):
 
 
 def test_search_falls_back_to_places_for_unmatched_postcode(geocoder):
-    """A postcode-shaped string with no postcode hit still tries a place search."""
+    """A postcode-shaped string without a postcode match still tries a place search."""
     assert geocoder.search("ZZ1 1ZZ") == []

@@ -1,8 +1,7 @@
-"""Sunrise and sunset times.
+"""Calculate sunrise and sunset times.
 
-The old design's day tabs showed these, but the BPF API does not supply them, so they
-are computed from the NOAA solar position equations. Accurate to well under a minute
-at UK latitudes, which is all the display needs.
+The BPF API does not supply these values, so they are calculated from the NOAA solar
+position equations. The result is accurate enough for the display.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ import math
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-# Solar zenith at sunrise/sunset, including the standard refraction allowance.
+# Solar zenith at sunrise and sunset, including standard refraction.
 _ZENITH = math.radians(90.833)
 
 
@@ -25,7 +24,7 @@ def _julian_day(day: date) -> float:
 
 
 def _solar_events(day: date, latitude: float, longitude: float) -> tuple[float, float] | None:
-    """Return (sunrise, sunset) as UTC hours, or None for polar day/night."""
+    """Return sunrise and sunset as UTC hours, or None during polar day or night."""
     julian_century = (_julian_day(day) - 2451545.0) / 36525.0
 
     geom_mean_long = math.radians(
@@ -76,7 +75,7 @@ def _solar_events(day: date, latitude: float, longitude: float) -> tuple[float, 
         math.tan(lat) * math.tan(declination)
     )
     if not -1.0 <= cos_hour_angle <= 1.0:
-        return None  # Sun never rises or never sets on this day.
+        return None  # The sun does not rise or set on this day.
 
     hour_angle = math.degrees(math.acos(cos_hour_angle))
     solar_noon = (720 - 4 * longitude - equation_of_time) / 60
@@ -91,7 +90,7 @@ def _to_local(day: date, utc_hours: float, tz: ZoneInfo) -> datetime:
 def sun_times(
     day: date, latitude: float, longitude: float, tz: ZoneInfo
 ) -> tuple[datetime | None, datetime | None]:
-    """Local sunrise and sunset for a date, or (None, None) inside a polar day/night."""
+    """Return local sunrise and sunset, or (None, None) during polar day or night."""
     events = _solar_events(day, latitude, longitude)
     if events is None:
         return None, None
@@ -100,10 +99,10 @@ def sun_times(
 
 
 def is_daylight(moment: datetime, latitude: float, longitude: float, tz: ZoneInfo) -> bool:
-    """Whether a given instant falls between sunrise and sunset.
+    """Return whether an instant falls between sunrise and sunset.
 
-    Drives the day/night variant of the weather symbol, since the API's weather code
-    already distinguishes them but a fallback is needed when it does not.
+    This selects the day/night weather symbol when the API code does not distinguish
+    the two variants.
     """
     local = moment.astimezone(tz)
     sunrise, sunset = sun_times(local.date(), latitude, longitude, tz)

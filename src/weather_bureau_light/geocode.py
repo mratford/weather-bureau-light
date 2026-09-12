@@ -1,8 +1,7 @@
-"""Turn a typed place name or postcode into coordinates.
+"""Convert a place name or postcode to coordinates.
 
-The BPF location list gives ids and coordinates but no names at all, so searching for
-"Brentwood" needs a gazetteer from elsewhere. postcodes.io is free, needs no key, and
-covers both UK postcodes and place names.
+The BPF location list provides ids and coordinates but no names. postcodes.io supplies
+the missing place lookup without requiring an API key.
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ from .datahub import DiskCache
 
 log = logging.getLogger(__name__)
 
-# Loose UK postcode shape; postcodes.io does the real validation.
+# A loose UK postcode shape; postcodes.io performs the actual validation.
 POSTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$", re.I)
 
 
@@ -106,10 +105,9 @@ class Geocoder:
         return places
 
     def reverse(self, latitude: float, longitude: float) -> Place | None:
-        """Name a set of coordinates.
+        """Return a name for a set of coordinates.
 
-        BPF sites carry no name, so the page title for a site is recovered by looking
-        up the nearest postcode's district.
+        BPF sites carry no name, so the page uses the nearest postcode district.
         """
         payload = self._get(
             "/postcodes",
@@ -119,8 +117,7 @@ class Geocoder:
         if not results:
             return None
         row = results[0]
-        # The district is the town-level name a forecast page wants ("Brentwood"),
-        # rather than the ward ("Brentwood North") or the postcode.
+        # Use the town-level district name rather than a ward or postcode.
         name = row.get("admin_district") or row.get("admin_ward") or row.get("postcode")
         region = row.get("region")
         return Place(

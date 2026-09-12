@@ -1,7 +1,7 @@
-"""Tests for the spot-site catalogue and geo lookup.
+"""Tests for the spot-site catalogue and location lookup.
 
-The live API publishes ids and coordinates with empty properties, so these fixtures
-mirror that: sites are nameless and names arrive later from the geocoder.
+The live API publishes ids and coordinates with empty properties. These fixtures match
+that format; names are added later by the geocoder.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def test_parses_all_features(catalogue):
 
 
 def test_sites_have_no_name_from_the_api(catalogue):
-    """The forecast service supplies coordinates only."""
+    """The forecast service supplies coordinates but no names."""
     assert catalogue.get("00350584").name is None
 
 
@@ -38,7 +38,7 @@ def test_named_attaches_a_label(catalogue):
     named = catalogue.get("00350584").named("Brentwood", "Essex")
     assert named.display_name == "Brentwood (Essex)"
     assert named.id == "00350584"
-    # The original is left untouched.
+    # Leave the original site unchanged.
     assert catalogue.get("00350584").name is None
 
 
@@ -76,12 +76,12 @@ def test_nearest_on_empty_catalogue():
 
 
 def test_search_finds_nothing_when_sites_are_nameless(catalogue):
-    """Name search has to go through the geocoder instead."""
+    """Name searches use the geocoder."""
     assert catalogue.search("Brentwood") == []
 
 
 def test_haversine_known_distance():
-    # Brentwood to central London is about 30 km.
+    # Brentwood is about 30 km from central London.
     assert haversine_km(51.6214, 0.3053, 51.5072, -0.1276) == pytest.approx(33, abs=4)
 
 

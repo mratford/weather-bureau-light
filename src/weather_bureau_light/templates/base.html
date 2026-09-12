@@ -5,9 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Weather Bureau Light{% endblock %}</title>
 
-{# Icons are drawn by scripts/make_icons.py. iOS uses apple-touch-icon for a home
-   screen bookmark and ignores everything else, including SVG; the label beneath it
-   comes from apple-mobile-web-app-title, which is short because iOS truncates it. #}
+{# scripts/make_icons.py creates the icons. iOS uses apple-touch-icon for home-screen
+   bookmarks and truncates the label from apple-mobile-web-app-title. #}
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png') }}">
 <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}">
@@ -19,7 +18,7 @@
 
 <header class="masthead">
   <div class="masthead-inner">
-    {# Light every day but Halloween, when the whole page goes dark. #}
+    {# Use a light palette except on Halloween. #}
     <a class="brand" href="{{ url_for('index') }}">Weather Bureau
       <span>{{ 'Dark' if season == 'halloween' else 'Light' }}</span></a>
     <form class="site-search" action="{{ url_for('search') }}" method="get" role="search">
@@ -35,8 +34,8 @@
   {% block content %}{% endblock %}
 </main>
 
-{# "Data supplied by the Met Office" is the wording clause 2.6.1 of the Weather DataHub
-   terms asks for, alongside the visualisation. Keep the phrase intact. #}
+{# Keep this attribution wording as required by clause 2.6.1 of the Weather DataHub
+   terms, alongside the visualisation. #}
 <footer class="page-footer">
   <p>
     Data supplied by the Met Office, via the Weather DataHub Blended

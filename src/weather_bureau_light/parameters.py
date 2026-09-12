@@ -1,13 +1,11 @@
-"""Resolve the logical fields the forecast table needs onto real API parameter names.
+"""Map the forecast table's logical fields to API parameter names.
 
-The Met Office docs never enumerate the BPF parameter names - they tell you to read
-the collection endpoint - and the names differ between the percentile and probability
-collections. So rather than hardcode a guess, each field carries ranked regex patterns
-and is matched against the parameter list the service actually reports. First pattern
-to match wins, so the patterns are ordered most- to least-specific.
+The API uses different names in the percentile and probability collections, and the
+documentation does not list them. Each field therefore has ordered regular-expression
+patterns that are matched against the names returned by the service.
 
-`scripts/discover.py` prints the live names; `unresolved()` reports anything that
-failed to match so a mismatch surfaces loudly instead of rendering as a blank row.
+`scripts/discover.py` prints the live names, and `unresolved()` reports fields that do
+not match so they are not silently rendered as blank rows.
 """
 
 from __future__ import annotations
@@ -21,19 +19,18 @@ from . import units
 
 @dataclass(frozen=True)
 class Field:
-    """One row of the forecast table."""
+    """One forecast table row."""
 
     key: str
     label: str
     patterns: tuple[str, ...]
     convert: Callable[[float | None], float | None] | None = None
     unit: str = ""
-    #: Percentile fields get a median plus a 10th-90th range; deterministic ones do not.
+    #: Percentile fields have a median and 10th-90th range; deterministic fields do not.
     probabilistic: bool = True
-    #: Coarser-resolution parameters covering the tail of the forecast. Some parameters
-    #: are published hourly (Pt01h) only for the first few days and three-hourly
-    #: (Pt03h) beyond that, so both are fetched and the finer one wins where they
-    #: overlap. Without this, gusts and weather symbols vanish after about day five.
+    #: Coarser-resolution parameters covering the end of the forecast. Some fields are
+    #: hourly (Pt01h) for the first few days and three-hourly (Pt03h) later, so both
+    #: are fetched and the finer source takes priority where they overlap.
     fallback_patterns: tuple[str, ...] = ()
 
 
@@ -41,17 +38,16 @@ def _p(*patterns: str) -> tuple[str, ...]:
     return patterns
 
 
-# Percentile collection. Patterns are anchored on the names confirmed live by
-# scripts/discover.py, with looser fallbacks in case the service renames things.
+# Percentile collection. Patterns use names confirmed by scripts/discover.py, with
+# less specific fallbacks in case the service changes them.
 #
-# Several parameters exist in hourly and three-hourly forms (Pt01h / Pt03h). The
-# hourly one is preferred; the three-hourly is the fallback for the later part of the
-# forecast, where the API stops publishing hourly data.
+# Several parameters have hourly and three-hourly forms (Pt01h / Pt03h). Prefer the
+# hourly form and use the three-hourly form later, when hourly data is unavailable.
 PERCENTILE_FIELDS: tuple[Field, ...] = (
     Field(
         "temperature",
         "Temperature",
-        # Must not match the Maximum/Minimum Pt12h aggregates.
+        # Exclude the Maximum/Minimum Pt12h aggregates.
         _p(r"^air_?temperature1p5m$", r"^air_?temperature$", r"screen.*temperature"),
         units.kelvin_to_celsius,
         "°C",
@@ -100,7 +96,7 @@ PERCENTILE_FIELDS: tuple[Field, ...] = (
     Field(
         "visibility",
         "Visibility",
-        # The plain 1.5m parameter, not the "in vicinity" variant.
+        # Use the plain 1.5m parameter, not the "in vicinity" variant.
         _p(r"^visibility_?in_?air1p5m$", r"^visibility.*1p5m$", r"^visibility"),
         None,
         "m",
@@ -115,7 +111,7 @@ PERCENTILE_FIELDS: tuple[Field, ...] = (
     Field(
         "uv",
         "UV index",
-        # Not the Pt24h maximum.
+        # Exclude the Pt24h maximum.
         _p(r"^ultraviolet_?index$", r"^uv_?index$", r"ultraviolet.*index"),
         None,
         "",
@@ -131,8 +127,8 @@ PERCENTILE_FIELDS: tuple[Field, ...] = (
     ),
 )
 
-# Probability collection: the chance-of-precipitation row. This parameter carries a
-# threshold axis, and the threshold is chosen in model.py rather than here.
+# Probability collection: the chance-of-precipitation row. It has a threshold axis,
+# and model.py selects the threshold.
 PROBABILITY_FIELDS: tuple[Field, ...] = (
     Field(
         "precipitation_probability",
@@ -152,18 +148,18 @@ PROBABILITY_FIELDS: tuple[Field, ...] = (
 
 @dataclass
 class Resolution:
-    """The outcome of matching fields against a live parameter list."""
+    """The result of matching fields against a live parameter list."""
 
     mapping: dict[str, str] = field(default_factory=dict)
     missing: list[str] = field(default_factory=list)
-    #: Coarser-resolution sources per field, tried after the primary one.
+    #: Coarser-resolution sources for each field, tried after the primary source.
     fallbacks: dict[str, list[str]] = field(default_factory=dict)
 
     def name_for(self, key: str) -> str | None:
         return self.mapping.get(key)
 
     def names_for(self, key: str) -> list[str]:
-        """Every source for a field, finest resolution first."""
+        """Return every source for a field, finest resolution first."""
         primary = self.mapping.get(key)
         names = [primary] if primary else []
         return names + [n for n in self.fallbacks.get(key, []) if n != primary]
@@ -178,18 +174,17 @@ class Resolution:
 
 
 def _normalise(name: str) -> str:
-    """Compare case- and separator-insensitively.
+    """Compare names without regard to case or separators.
 
-    The API mixes conventions - camelCase in CoverageJSON (`airTemperature`) against
-    snake_case in the underlying CF names (`air_temperature`) - so both collapse to a
-    single underscore-separated lowercase form before matching.
+    The API mixes camelCase in CoverageJSON with snake_case in CF names, so both forms
+    are reduced to lowercase words separated by underscores before matching.
     """
     spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name)
     return re.sub(r"[^a-z0-9]+", "_", spaced.lower()).strip("_")
 
 
 def resolve(available: Iterable[str], fields: Iterable[Field]) -> Resolution:
-    """Match each field against the available parameter names."""
+    """Resolve each field against the available parameter names."""
     names = list(available)
     normalised = {name: _normalise(name) for name in names}
     result = Resolution()
@@ -204,7 +199,7 @@ def resolve(available: Iterable[str], fields: Iterable[Field]) -> Resolution:
                 if re.search(pattern, norm) and name not in claimed
             ]
             if candidates:
-                # Shortest name wins: the plainest parameter rather than a variant.
+                # Prefer the shortest, least specific matching name.
                 return min(candidates, key=lambda n: (len(n), n))
         return None
 
@@ -220,7 +215,7 @@ def resolve(available: Iterable[str], fields: Iterable[Field]) -> Resolution:
         if fallback:
             result.fallbacks.setdefault(spec.key, []).append(fallback)
             claimed.add(fallback)
-            # A field whose only source is the coarser one is still usable.
+            # A field with only a coarser source is still usable.
             if chosen is None:
                 result.missing.remove(spec.key)
 

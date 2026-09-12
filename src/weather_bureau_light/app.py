@@ -1,4 +1,4 @@
-"""Flask application serving the forecast page."""
+"""Flask application for the forecast page."""
 
 from __future__ import annotations
 
@@ -29,8 +29,7 @@ def create_app(config: Config | None = None, service: ForecastService | None = N
 
     @app.context_processor
     def season() -> dict[str, str]:
-        """Every page carries the name of its masthead palette: the season, or a
-        holiday's own colours on the days that have them."""
+        """Return the masthead palette name for the current date."""
         return {"season": palette_for(datetime.now(UK_TZ).date())}
 
     @app.route("/")
@@ -54,7 +53,7 @@ def create_app(config: Config | None = None, service: ForecastService | None = N
         site = service.site(site_id)
         if site is None:
             abort(404, f"Unknown site {site_id}")
-        # A name carried over from a search beats the reverse-geocoded one.
+        # Keep the name supplied by the search when one is available.
         if request.args.get("name"):
             site = site.named(request.args["name"])
 
@@ -67,11 +66,10 @@ def create_app(config: Config | None = None, service: ForecastService | None = N
 
     @app.route("/healthz")
     def healthz():
-        """Whether the API is answering, for monitoring an unattended instance.
+        """Report API status for monitoring an unattended instance.
 
-        Reports only what previous requests recorded: calling this must never spend a
-        call from the daily quota, however often it is polled. Nothing here identifies
-        the API key, since WBL_HOST may put this on the local network.
+        This uses the results of previous requests and does not consume an API call.
+        It does not expose the API key.
         """
         client = svc().client
         healthy = client.last_failure_at is None or (

@@ -1,13 +1,11 @@
-"""Dump the live shape of the Met Office BPF API so the parameter mapping can be
-written against reality rather than guessed.
+"""Record the live structure of the Met Office BPF API for parameter mapping.
 
-The public docs never enumerate the parameter names - the glossary loads over
-JavaScript and the API rejects unauthenticated requests - so they direct you to read
-the collection endpoint instead. This does that, and saves everything it sees.
+The public documentation does not list parameter names, so this reads the collection
+endpoint and saves the response.
 
     uv run python scripts/discover.py
 
-Writes to scratch/discovery/. Costs a handful of API calls.
+Writes to scratch/discovery/ and uses a small number of API calls.
 """
 
 from __future__ import annotations
@@ -56,7 +54,7 @@ def get(client: httpx.Client, base: str, path: str, **params: str) -> object | N
 
 
 def pick_base_url(client: httpx.Client, configured: str) -> str | None:
-    """Find a service version this key is actually subscribed to."""
+    """Find a service version accepted by this key."""
     for base in dict.fromkeys([configured, BASE_URL_V2, BASE_URL_V1]):
         print(f"Trying {base}")
         if get(client, base, "/collections") is not None:
@@ -65,7 +63,7 @@ def pick_base_url(client: httpx.Client, configured: str) -> str | None:
 
 
 def summarise_parameters(doc: dict) -> None:
-    """Print the parameter names, which is the whole point of running this."""
+    """Print the parameter names returned by the service."""
     params = doc.get("parameters") or {}
     if not params:
         return
@@ -81,7 +79,7 @@ def summarise_parameters(doc: dict) -> None:
 
 
 def nearest_site(features: list[dict], lat: float, lon: float) -> dict | None:
-    """Straight-line nearest site. Good enough to grab one sample response."""
+    """Return the nearest site by straight-line distance."""
     best, best_d = None, math.inf
     for feature in features:
         coords = (feature.get("geometry") or {}).get("coordinates")
@@ -128,7 +126,7 @@ def main() -> int:
             if instances is not None:
                 save(f"instances_{collection_id}", instances)
 
-            # Parameter definitions live on the collection entry itself.
+            # Parameter definitions are stored on the collection entry.
             entry = next(
                 (c for c in (collections or {}).get("collections", []) if c.get("id") == collection_id),
                 {},
@@ -139,7 +137,7 @@ def main() -> int:
                 print()
                 continue
 
-            # Locations hang off an instance, not the collection directly.
+            # Locations belong to an instance rather than directly to the collection.
             instance_ids = [
                 i["id"] for i in (instances or {}).get("instances", []) if isinstance(i, dict)
             ]
@@ -156,7 +154,7 @@ def main() -> int:
                 continue
             features = locations.get("features", [])
             print(f"  {len(features)} locations")
-            # The full catalogue is large; keep a sample plus the one we query.
+            # The full catalogue is large; keep a sample and the queried site.
             save(f"locations_sample_{collection_id}", {**locations, "features": features[:25]})
 
             site = nearest_site(features, DEFAULT_LATITUDE, DEFAULT_LONGITUDE)

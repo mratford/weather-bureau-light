@@ -1,18 +1,18 @@
-"""Which season the page dresses for.
+"""Choose the season used by the page.
 
-Meteorological seasons - whole months - rather than the astronomical ones that turn
-on a solstice or equinox, so the masthead changes on the 1st and never mid-week.
+The page uses meteorological seasons, which begin on the first day of a month rather
+than at an astronomical event.
 """
 
 from __future__ import annotations
 
 from datetime import date
 
-#: Indexed by (month % 12) // 3, which puts December with the following January.
+#: Indexed by (month % 12) // 3, which groups December with January and February.
 _SEASONS = ("winter", "spring", "summer", "autumn")
 
 
-#: Dates that dress the page themselves, whatever season they fall in.
+#: Dates with a holiday-specific palette, regardless of their season.
 _HOLIDAYS = {
     (10, 31): "halloween",
     (12, 24): "christmas",
@@ -22,12 +22,10 @@ _HOLIDAYS = {
 
 
 def season_for(day: date) -> str:
-    """December to February winter, March to May spring, and so on."""
+    """Return winter for December-February, spring for March-May, and so on."""
     return _SEASONS[(day.month % 12) // 3]
 
 
 def palette_for(day: date) -> str:
-    """Which masthead palette the page wears, which is the season unless a holiday
-    claims the day. The name is used as a CSS class, so it has to match a season-*
-    rule in the stylesheet."""
+    """Return the masthead palette, using a holiday override when applicable."""
     return _HOLIDAYS.get((day.month, day.day)) or season_for(day)

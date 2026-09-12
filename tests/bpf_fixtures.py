@@ -1,11 +1,9 @@
-"""Synthetic BPF responses matching the live API shape.
+"""Synthetic BPF responses matching the live API structure.
 
-Structure confirmed against the real service by scripts/discover.py:
-a CoverageCollection with one coverage per parameter, each carrying axes
-locationId / percentiles / t / x / y / z, ranges declared percentile-major
-(axisNames ["percentiles", "t"]), percentile axis values as strings, and SI units.
-Probability parameters replace the percentile axis with a threshold axis whose
-values are strings like ">2.7777778E-8".
+The structure was checked against the real service with scripts/discover.py:
+a CoverageCollection with one coverage per parameter, axes named
+locationId / percentiles / t / x / y / z, percentile-major ranges, string percentile
+values, and SI units. Probability parameters use a threshold axis instead.
 """
 
 from __future__ import annotations
@@ -62,7 +60,7 @@ PERCENTILE_PARAMS = {
 }
 
 PROBABILITY_PARAM = "probabilityOfLwePrecipitationRateAboveThreshold"
-# Real threshold labels span many orders of magnitude; 2.7777778E-8 m/s is 0.1 mm/hr.
+# Threshold labels span several orders of magnitude; 2.7777778E-8 m/s is 0.1 mm/hr.
 THRESHOLDS = [
     ">0.0",
     ">8.333333E-9",
@@ -73,7 +71,7 @@ THRESHOLDS = [
     ">1.388889E-6",
 ]
 
-# Deterministic parameters carry no percentile axis.
+# Deterministic parameters have no percentile axis.
 DETERMINISTIC = {"weatherCodePt01h", "weatherCodePt03h"}
 
 
@@ -85,7 +83,7 @@ def _times(n: int = N_HOURS, step_hours: int = 1) -> list[str]:
 
 
 def _diurnal(hour: int) -> float:
-    """A plausible daily temperature curve, coldest around 04:00."""
+    """Return a plausible daily temperature curve, coldest around 04:00."""
     return 15.0 + 6.0 * math.sin((hour - 9) / 24 * 2 * math.pi)
 
 
@@ -111,7 +109,7 @@ def _base_value(param: str, hour: int) -> float:
 
 
 def _spread(param: str) -> float:
-    """How far the outer percentiles sit from the median."""
+    """Return the distance from the median to the outer percentiles."""
     return {
         "airTemperature1p5m": 2.0,
         "feelsLikeTemperature1p5m": 2.2,
@@ -135,7 +133,7 @@ def _coverage(param: str, unit: str, times: list[str]) -> dict:
         values = [_base_value(param, h) for h in range(len(times))]
     else:
         domain_axes["percentiles"] = {"values": PERCENTILES}
-        # Declared percentile-major, as the live service does.
+        # Declare the ranges percentile-major, as the live service does.
         axis_names = ["percentiles", "t"]
         shape = [len(PERCENTILES), len(times)]
         spread = _spread(param)
@@ -184,7 +182,7 @@ def build_percentile_doc(parameter_names: list[str] | None = None, hours: int = 
 def build_probability_doc(parameter_names: list[str] | None = None, hours: int = N_HOURS) -> dict:
     times = _times(hours)
     axis = f"{PROBABILITY_PARAM}Values"
-    # Probability falls as the threshold rises, and units are a 0-1 fraction.
+    # Probability decreases as the threshold rises, and values are 0-1 fractions.
     values = [
         round(max(0.0, abs(math.sin(h / 5)) * 0.9 - 0.12 * ti), 3)
         for ti in range(len(THRESHOLDS))
@@ -255,7 +253,7 @@ COLLECTIONS = {
     ]
 }
 
-# postcodes.io responses.
+    # postcodes.io response fixtures.
 PLACES_RESPONSE = {
     "status": 200,
     "result": [

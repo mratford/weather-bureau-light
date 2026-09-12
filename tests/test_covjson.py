@@ -1,7 +1,7 @@
-"""Tests for the CoverageJSON parser, focused on N-d axis reshaping.
+"""Tests for CoverageJSON parsing and N-dimensional axis reshaping.
 
-A wrong axis order here produces plausible numbers rather than an error, so these
-tests use values that encode their own coordinates: value = t*100 + p.
+An incorrect axis order can produce plausible values, so the fixtures encode their
+coordinates as value = t*100 + p.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from weather_bureau_light import covjson
 
 
 def build_doc(times: list[str], percentiles: list[float]) -> dict:
-    """Row-major values where each entry encodes (time index, percentile index)."""
+    """Return row-major values encoding time and percentile indices."""
     values = [t * 100 + p for t in range(len(times)) for p in range(len(percentiles))]
     return {
         "domain": {
@@ -57,7 +57,7 @@ def test_reads_coordinates():
 def test_at_indexes_row_major_by_axis_name():
     coverage = covjson.parse(build_doc(TIMES, PERCENTILES))
     rng = coverage.ranges["airTemperature"]
-    # value == t*100 + p, so any transposition shows up immediately.
+    # value == t*100 + p, making a transposition visible in the result.
     assert rng.at(t=0, percentile=0) == 0
     assert rng.at(t=0, percentile=2) == 2
     assert rng.at(t=2, percentile=0) == 200
@@ -71,14 +71,14 @@ def test_series_walks_time_holding_percentile_fixed():
 
 
 def test_series_is_not_a_naive_flat_slice():
-    """Guards the specific bug this module exists to prevent."""
+    """Check the axis-order bug this module covers."""
     coverage = covjson.parse(build_doc(TIMES, PERCENTILES))
     naive = coverage.ranges["airTemperature"].values[: len(TIMES)]
     assert coverage.series("airTemperature", percentile=0) != naive
 
 
 def test_transposed_axis_order_is_respected():
-    """Same data declared percentile-major must read back identically."""
+    """The same data reads identically when declared percentile-major."""
     doc = build_doc(TIMES, PERCENTILES)
     values = [t * 100 + p for p in range(len(PERCENTILES)) for t in range(len(TIMES))]
     doc["ranges"]["airTemperature"] |= {
@@ -145,28 +145,26 @@ def test_unknown_parameter_returns_none():
     assert coverage.series("noSuchParameter") is None
 
 
-# --- Axis order detection -------------------------------------------------------
+# --- Axis order selection -------------------------------------------------------
 #
-# The live BPF service declares axisNames in row-major order but serialises the
-# values column-major. Trusting the declared order yields a 10th percentile above
-# the 90th, so the layout is inferred from the ordering invariant instead.
+# The live BPF service declares row-major axisNames but serialises values column-major.
+# The parser therefore infers the layout from the expected value ordering.
 
 
 N_PCT, N_TIME = 3, 4
 
 
 def _truth(p: int, t: int) -> float:
-    """Rises with percentile, falls over time.
+    """Return values that rise with percentile and fall over time.
 
-    The shape must not be square and the time trend must be steeper than the
-    percentile spread: otherwise a transposed reading stays monotonic too and the
-    two layouts are genuinely indistinguishable.
+    The shape is not square and the time trend is steeper than the percentile spread,
+    so a transposed reading is distinguishable.
     """
     return 280.0 + p * 2.0 - t * 3.0
 
 
 def build_ordered_doc(order: str) -> dict:
-    """Percentiles that genuinely increase, laid out in the given memory order."""
+    """Return increasing percentiles in the given memory order."""
     times = [f"2026-08-15T0{3 + i}:00Z" for i in range(N_TIME)]
     pcts = ["10", "50", "90"]
 
@@ -204,18 +202,18 @@ def test_percentiles_read_back_correctly_either_way(order):
     assert p10 == [_truth(0, t) for t in range(N_TIME)]
     assert p50 == [_truth(1, t) for t in range(N_TIME)]
     assert p90 == [_truth(2, t) for t in range(N_TIME)]
-    # The invariant that drives the detection.
+    # Use the percentile ordering invariant to choose the layout.
     assert all(a < b < c for a, b, c in zip(p10, p50, p90))
 
 
 def test_column_major_data_is_not_read_as_declared():
-    """Guards the exact bug: the declared order would invert the percentiles."""
+    """The declared order would invert the percentiles."""
     coverage = covjson.parse(build_ordered_doc("F"))
     rng = coverage.ranges["airTemperature1p5m"]
     assert rng.order == "F"
     naive = rng.with_order("C")
     name, _ = coverage.percentile_axis()
-    # Under the declared reading the 10th percentile would exceed the 50th.
+    # Under the declared order the 10th percentile would exceed the 50th.
     assert naive.at(percentiles=0, t=1) > naive.at(percentiles=1, t=1)
     assert rng.at(percentiles=0, t=1) < rng.at(percentiles=1, t=1)
 
@@ -224,7 +222,7 @@ def test_threshold_probabilities_detected_as_decreasing():
     times = ["2026-08-15T03:00Z", "2026-08-15T04:00Z"]
     thresholds = [">0.0", ">2.7777778E-8", ">1.388889E-6"]
 
-    # Probability falls as the threshold rises; laid out column-major.
+    # Probability decreases as the threshold rises; store it column-major.
     def truth(k: int, t: int) -> float:
         return 0.9 - 0.3 * k - 0.05 * t
 
@@ -260,9 +258,9 @@ def test_threshold_axis_parses_comparison_prefixes():
 
 
 def test_nearest_threshold_uses_a_log_scale():
-    """Rain-rate thresholds span orders of magnitude; linear matching collapses."""
+    """Rain-rate thresholds span orders of magnitude, so matching is logarithmic."""
     thresholds = [0.0, 8.333333e-9, 2.7777778e-8, 6.944445e-8, 1.388889e-6, 0.003]
-    target = 0.0001 / 3600  # 0.1 mm/hr
+    target = 0.0001 / 3600  # 0.1 mm/hr in m/s.
     assert thresholds[covjson.nearest_threshold_index(thresholds, target)] == pytest.approx(
         2.7777778e-8
     )

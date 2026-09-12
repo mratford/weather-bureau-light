@@ -1,9 +1,9 @@
-"""Assemble parsed coverages into the shape the template renders.
+"""Assemble parsed coverages for the forecast template.
 
-Two collections feed one table: percentiles carry temperature, wind, humidity,
-visibility, UV, pressure and the weather symbol; the chance-of-precipitation row is a
-probability and comes from the probabilities collection. They are merged on timestamp,
-because the two collections do not necessarily publish identical time axes.
+The percentile collection supplies temperature, wind, humidity, visibility, UV,
+pressure, and the weather symbol. The probability collection supplies the chance of
+precipitation. The collections are merged by timestamp because their time axes may
+differ.
 """
 
 from __future__ import annotations
@@ -21,17 +21,17 @@ MEDIAN = 50.0
 LOWER = 10.0
 UPPER = 90.0
 
-#: How many days the day strip shows. The API returns about fourteen, but the later ones
-#: carry no weather symbol and a spread wide enough to be worth little.
+#: Number of days shown in the day strip. Later API entries may have no weather symbol
+#: and a wide uncertainty range.
 MAX_DAYS = 7
 
-#: 0.1 mm/hr expressed in m/s, the Met Office's threshold for "any precipitation".
+#: 0.1 mm/hr in m/s, the Met Office threshold for "any precipitation".
 PRECIP_THRESHOLD_MS = 0.0001 / 3600
 
 
 @dataclass
 class Value:
-    """One cell: a median, plus the 10th-90th spread where the data is probabilistic."""
+    """One forecast cell, with an optional 10th-90th percentile range."""
 
     median: float | None = None
     lower: float | None = None
@@ -56,7 +56,7 @@ class Value:
 
 @dataclass
 class Timestep:
-    """One column of the forecast table."""
+    """One column in the forecast table."""
 
     time: datetime
     values: dict[str, Value] = field(default_factory=dict)
@@ -81,8 +81,7 @@ class Timestep:
         resolved = symbols.lookup(code)
         if resolved is symbols.UNKNOWN:
             return resolved
-        # Fall back to our own daylight calculation when the code is a day/night pair
-        # but the reported variant disagrees with the actual local time.
+        # Use the daylight calculation when a day/night code disagrees with local time.
         if resolved.night and self.is_daylight:
             for candidate in symbols._SYMBOLS.values():
                 if candidate.sprite == resolved.sprite and not candidate.night:
@@ -109,14 +108,14 @@ class Timestep:
 
 @dataclass
 class Day:
-    """One tab in the day strip."""
+    """One day tab in the day strip."""
 
     date: date
     timesteps: list[Timestep] = field(default_factory=list)
     sunrise: datetime | None = None
     sunset: datetime | None = None
-    #: Every timestep the API published for this day, including any the table drops.
-    #: The day's high and low come from here, so hiding a column cannot move them.
+    #: Every timestep published for this day, including those omitted from the table.
+    #: The day's high and low are calculated from this complete list.
     all_timesteps: list[Timestep] = field(default_factory=list)
 
     def _temperatures(self) -> list[float]:
@@ -135,10 +134,9 @@ class Day:
 
     @property
     def symbol(self) -> symbols.Symbol:
-        """Representative symbol: whatever is forecast around the middle of the day.
+        """Return the symbol forecast near the middle of the day.
 
-        Taken from every hour the day has, not just the ones still on the table, so
-        the tab keeps describing the day as a whole once the morning has passed.
+        Use every timestep for the day, not only those still visible in the table.
         """
         steps = [
             t
@@ -165,9 +163,9 @@ class Forecast:
     site: Site
     days: list[Day]
     issued: datetime | None = None
-    """When the data was retrieved from the API, not when the page was rendered."""
+    """When the data was retrieved from the API."""
     stale: bool = False
-    """True when the live fetch failed and this came from the cache regardless."""
+    """Whether the data came from the cache after a failed live fetch."""
     missing_fields: list[str] = field(default_factory=list)
 
     def day(self, iso: str | None) -> Day | None:
@@ -179,15 +177,13 @@ class Forecast:
 
     @property
     def age_text(self) -> str:
-        """How old the data is, in round terms, for the staleness notice."""
+        """Return the rounded age used by the staleness notice."""
         if self.issued is None:
             return "an unknown time ago"
         seconds = (datetime.now(self.issued.tzinfo) - self.issued).total_seconds()
         if seconds < 90:
             return "just now"
-        # Change unit at the boundary itself, so an hour old reads as "1 hour ago"
-        # rather than "60 minutes ago". Days are held back to 36 hours, where
-        # "yesterday's forecast" starts being the more useful thing to say.
+        # Change units at their boundaries. Use days only after 36 hours.
         if seconds < 3600:
             count, unit = round(seconds / 60), "minute"
         elif seconds < 129600:
@@ -200,15 +196,14 @@ class Forecast:
 def _extract(
     coverages: CoverageSet, resolution: Resolution, specs, into: dict[str, dict[datetime, Value]]
 ) -> None:
-    """Pull each resolved field off its own coverage and index it by timestamp.
+    """Read each resolved field from its coverage and index it by timestamp.
 
-    Each parameter has its own time axis - and in the three-hourly part of the
-    forecast those axes are offset from one another (one parameter on 01:00/04:00,
-    another on 02:00/05:00) - so each field keeps its own timestamp map and the
-    columns are reconciled later in `build`.
+    Parameters may use different time axes, especially in the three-hourly part of
+    the forecast. Each field therefore keeps its own timestamp map, and the columns
+    are reconciled later in `build`.
     """
     for spec in specs:
-        # Finest resolution first; coarser sources only fill timesteps it does not cover.
+        # Read the finest resolution first; coarser sources fill only missing times.
         for name in resolution.names_for(spec.key):
             coverage = coverages.get(name)
             if coverage is not None:
@@ -218,13 +213,12 @@ def _extract(
 def _extract_one(
     coverage: Coverage, name: str, spec: Field, into: dict[str, dict[datetime, Value]]
 ) -> None:
-    """Read one parameter into the field's timestamp map."""
+    """Read one parameter into a field's timestamp map."""
     percentile_axis = coverage.percentile_axis() if spec.probabilistic else None
     fixed: dict[str, int] = {}
 
-    # Probability parameters are published per threshold. The Met Office's chance of
-    # precipitation means "any precipitation", which is the 0.1 mm/hr threshold,
-    # expressed here in m/s.
+    # Probability parameters use thresholds. The chance of precipitation means
+    # "any precipitation", represented by the 0.1 mm/hr threshold in m/s.
     threshold_axis = coverage.threshold_axis()
     if threshold_axis is not None:
         axis_name, thresholds = threshold_axis
@@ -249,7 +243,7 @@ def _extract_one(
     for i, moment in enumerate(coverage.times):
         if i >= len(median_series):
             break
-        # A timestep already filled by a finer-resolution source wins.
+        # Keep a value already supplied at finer resolution.
         existing = series.get(moment)
         if existing is not None and existing.median is not None:
             continue
@@ -260,24 +254,22 @@ def _extract_one(
         )
 
 
-#: Fields ranked by how well they define the table's time grid. Temperature is the
-#: backbone of the forecast table, so its timesteps become the columns.
+#: Fields ranked by how well they define the table's time grid. Temperature provides
+#: the preferred column timestamps.
 _ANCHOR_PREFERENCE = ("temperature", "feels_like", "wind_speed", "humidity", "pressure")
 
 
 def _anchor_grid(by_field: dict[str, dict[datetime, Value]]) -> list[datetime]:
-    """Choose the timestamps that become table columns.
+    """Choose the timestamps used as table columns.
 
-    Parameters do not share one time axis: in the three-hourly part of the forecast
-    some sit on 01:00/04:00 and others on 02:00/05:00. Taking the union would produce
-    a column per grid, half of them nearly empty, so one field's axis is adopted as
-    the grid and the rest are matched onto it.
+    Parameters may use offset three-hourly grids. Use one field's axis as the grid
+    and match the other fields to it instead of creating mostly empty columns.
     """
     for key in _ANCHOR_PREFERENCE:
         stamps = [m for m, v in by_field.get(key, {}).items() if v.median is not None]
         if stamps:
             return sorted(stamps)
-    # No preferred field resolved; fall back to whichever has the most timesteps.
+        # If no preferred field resolved, use the field with the most timestamps.
     richest = max(by_field.values(), key=len, default={})
     return sorted(m for m, v in richest.items() if v.median is not None)
 
@@ -285,10 +277,9 @@ def _anchor_grid(by_field: dict[str, dict[datetime, Value]]) -> list[datetime]:
 def _column(
     by_field: dict[str, dict[datetime, Value]], moment: datetime, grid: list[datetime]
 ) -> dict[str, Value]:
-    """Assemble one table column, matching off-grid fields to the nearest timestamp.
+    """Assemble a table column by matching fields to the nearest timestamp.
 
-    A field on an offset grid is still worth showing, so it is allowed to contribute
-    a value up to half a column-width away rather than being dropped.
+    A field on an offset grid may contribute a value up to half a column width away.
     """
     tolerance = _half_spacing(grid, moment)
     column: dict[str, Value] = {}
@@ -308,7 +299,7 @@ def _column(
 
 
 def _half_spacing(grid: list[datetime], moment: datetime) -> float:
-    """Half the gap to the neighbouring column, in seconds."""
+    """Return half the gap to the neighbouring column, in seconds."""
     if len(grid) < 2:
         return 3600.0
     index = grid.index(moment)
@@ -321,34 +312,29 @@ def _half_spacing(grid: list[datetime], moment: datetime) -> float:
 
 
 def _now(tz: ZoneInfo) -> datetime:
-    """The current local time. A seam, so tests can place themselves in the day."""
+    """Return the current local time; tests can replace this value."""
     return datetime.now(tz)
 
 
 def _drop_elapsed_hours(day: Day, cutoff: datetime) -> None:
-    """Hide hours that have already been and gone.
+    """Remove hours that have fully elapsed.
 
-    A timestep labelled 17:00 describes the hour that starts at 17:00, so it stays on
-    the table until 18:00. The cutoff is therefore the top of the current hour, not the
-    current time: at 17:49 the 17:00 column is still the one being lived through.
+    A timestep labelled 17:00 describes the hour starting at 17:00, so it remains
+    visible until 18:00. The cutoff is the start of the current hour.
 
-    Only the table is trimmed. The day's high and low come from all_timesteps, so this
-    afternoon's peak still shows on the day tab after the hour that reached it.
+    Only the table is trimmed. The day's high and low still use all_timesteps.
     """
     day.timesteps = [t for t in day.timesteps if t.time >= cutoff]
 
 
 def _drop_unreported_hours(day: Day) -> None:
-    """Hide the hours the forecast has stopped reporting in full.
+    """Remove hours for which the forecast no longer reports all fields.
 
-    Past about five days the weather symbol goes three-hourly while temperature stays
-    hourly, so a day in the changeover shows a column every hour but a symbol only
-    every third one. Those in-between hours are dropped, which is what a wholly
-    three-hourly day already looks like.
+    Past about five days, weather symbols become three-hourly while temperature stays
+    hourly. In the transition period, remove the hourly columns without symbols.
 
-    A day with no symbols at all is left alone: that is the parameter missing rather
-    than the reporting thinning out, and an empty table would be worse than a
-    symbol-less one.
+    Leave a day with no symbols unchanged; that indicates a missing parameter rather
+    than reduced reporting frequency.
     """
     day.all_timesteps = list(day.timesteps)
     reported = [t for t in day.timesteps if t.median("weather_code") is not None]
@@ -368,7 +354,7 @@ def build(
     now: datetime | None = None,
     max_days: int = MAX_DAYS,
 ) -> Forecast:
-    """Merge the coverages into days of timesteps, in local time."""
+    """Merge the coverages into local calendar days."""
     tz = tz or ZoneInfo("Europe/London")
 
     by_field: dict[str, dict[datetime, Value]] = {}
@@ -383,8 +369,8 @@ def build(
     grid = _anchor_grid(by_field)
     by_time = {moment: _column(by_field, moment, grid) for moment in grid}
 
-    # Group into local days. Grouping after conversion to local time is what makes
-    # this correct across a DST boundary, where a day is 23 or 25 hours long.
+    # Convert to local time before grouping so daylight-saving changes are handled
+    # correctly; local days may contain 23 or 25 hours.
     days: dict[date, Day] = {}
     for moment in sorted(by_time):
         local = moment.astimezone(tz)
@@ -404,12 +390,10 @@ def build(
         _drop_unreported_hours(day)
         _drop_elapsed_hours(day, cutoff)
 
-    # A day whose hours have all elapsed is dropped rather than shown empty, which
-    # happens to today once its last timestep passes, and to any day the forecast
-    # still covers when the data being served is old.
+    # Drop a day once all of its hours have elapsed rather than showing an empty day.
     remaining = [days[key] for key in sorted(days) if days[key].timesteps]
 
-    # Truncated from the far end, so the strip always starts at today.
+    # Trim from the far end so the strip starts at today.
     ordered = remaining[:max_days]
 
     return Forecast(

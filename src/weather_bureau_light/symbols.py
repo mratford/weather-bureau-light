@@ -1,7 +1,7 @@
 """Met Office significant weather codes (0-30) and their presentation.
 
-The Met Office's own symbol artwork is Crown copyright, so this maps each code to a
-label plus an id into our own SVG sprite rather than hotlinking their images.
+The Met Office's symbol artwork is Crown copyright, so each code maps to a label and
+an id in this project's SVG sprite.
 """
 
 from __future__ import annotations
@@ -18,16 +18,16 @@ class Symbol:
 
     @property
     def known(self) -> bool:
-        """False past the end of the weather-code data.
+        """Return false for codes beyond the weather-code data.
 
-        The symbol parameters stop at about day eight while temperature runs to
-        fourteen, so the tail of the forecast legitimately has no symbol.
+        Symbol parameters end around day eight while temperature continues to day
+        fourteen, so later forecast entries may have no symbol.
         """
         return self.sprite != "unknown"
 
 
-# Codes as published in the Met Office code definitions. Day/night pairs share a
-# sprite where the artwork differs only by sun vs moon, which the sprite handles.
+# Codes from the Met Office definitions. Day/night pairs share a sprite whose artwork
+# differs only in the sun or moon element.
 _SYMBOLS: dict[int, Symbol] = {
     -1: Symbol(-1, "Trace rain", "rain-light"),
     0: Symbol(0, "Clear night", "clear", night=True),

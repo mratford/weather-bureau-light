@@ -1,4 +1,4 @@
-"""Tests for unit conversion, banding, and solar calculations."""
+"""Tests for unit conversion, visibility bands, and solar calculations."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def test_ms_to_mph():
 
 
 def test_pa_to_hpa():
-    # 102680 Pa is a real value from a Met Office sample response.
+    # 102680 Pa comes from a Met Office sample response.
     assert units.pa_to_hpa(102680) == pytest.approx(1026.8)
 
 
@@ -72,23 +72,23 @@ def test_symbol_lookup():
 
 
 def test_symbol_lookup_accepts_float_codes():
-    """Percentile ranges come back as floats even for the deterministic symbol."""
+    """Percentile ranges are floats even for the deterministic symbol."""
     assert symbols.lookup(7.0).label == "Cloudy"
 
 
 def test_sunrise_sunset_midsummer_brentwood():
     sunrise, sunset = astro.sun_times(date(2026, 6, 21), *BRENTWOOD, UK)
-    # Around 04:43 and 21:21 BST at this latitude.
+    # Expected times are around 04:43 and 21:21 BST at this latitude.
     assert sunrise.hour == 4 and 35 <= sunrise.minute <= 55
     assert sunset.hour == 21 and 10 <= sunset.minute <= 30
-    assert sunrise.utcoffset().total_seconds() == 3600  # BST
+    assert sunrise.utcoffset().total_seconds() == 3600  # BST.
 
 
 def test_sunrise_sunset_midwinter_brentwood():
     sunrise, sunset = astro.sun_times(date(2026, 12, 21), *BRENTWOOD, UK)
     assert sunrise.hour == 8
     assert sunset.hour == 15
-    assert sunrise.utcoffset().total_seconds() == 0  # GMT
+    assert sunrise.utcoffset().total_seconds() == 0  # GMT.
 
 
 def test_daylight_flag():

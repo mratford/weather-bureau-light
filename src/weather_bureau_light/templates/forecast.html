@@ -11,8 +11,8 @@
 {% block content %}
 {{ sprite.defs() }}
 
-{# The stale fallback in datahub.py keeps the page useful during an outage, but an
-   old forecast that looks current is worse than none: say so, in the page itself. #}
+{# datahub.py may provide cached data during an outage. Label it clearly so an old
+   forecast is not mistaken for a current one. #}
 {% if forecast.stale %}
 <p class="warning" role="status">
   Live update failed &mdash; this forecast was issued
@@ -86,15 +86,13 @@
 </nav>
 
 <script>
-  // Picking a day is a full page load, so the strip's horizontal scroll resets to the
-  // left and the day you just chose can end up off-screen. Bring it back into view.
-  // scrollLeft is set directly rather than using scrollIntoView, which would also
-  // scroll the page vertically and push the masthead out of sight.
+  // Selecting a day reloads the page and resets the strip's horizontal scroll. Make
+  // the selected day visible again without changing the page's vertical scroll.
   (function () {
     var selected = document.querySelector('.day-tab.is-selected');
     if (!selected) return;
     var strip = selected.parentElement;
-    if (strip.scrollWidth <= strip.clientWidth) return;  // They all fit; nothing to do.
+    if (strip.scrollWidth <= strip.clientWidth) return;  // The strip does not overflow.
     var stripBox = strip.getBoundingClientRect();
     var tabBox = selected.getBoundingClientRect();
     strip.scrollLeft += (tabBox.left - stripBox.left) - (stripBox.width - tabBox.width) / 2;
