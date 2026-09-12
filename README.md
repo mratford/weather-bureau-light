@@ -44,6 +44,75 @@ uv run weather-bureau-light
 ```
 and open <http://127.0.0.1:5000/>.
 
+### Run as a macOS service
+
+For a per-user background service, macOS uses `launchd`. Create a LaunchAgent at
+`~/Library/LaunchAgents/local.weather-bureau-light.plist`. Use absolute paths in the
+plist; replace `/Users/you/src/weather-bureau-light` below with the location of this
+checkout:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.weather-bureau-light</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/you/src/weather-bureau-light/.venv/bin/weather-bureau-light</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/you/src/weather-bureau-light</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/you/Library/Logs/weather-bureau-light.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/you/Library/Logs/weather-bureau-light.log</string>
+</dict>
+</plist>
+```
+
+Create the directories, then load and start it:
+
+```sh
+mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/local.weather-bureau-light.plist"
+launchctl kickstart -k "gui/$(id -u)/local.weather-bureau-light"
+```
+
+Useful service commands:
+
+```sh
+# Restart after changing code or .env
+launchctl kickstart -k "gui/$(id -u)/local.weather-bureau-light"
+
+# Check status and recent output
+launchctl print "gui/$(id -u)/local.weather-bureau-light"
+tail -f "$HOME/Library/Logs/weather-bureau-light.log"
+
+# Stop and unload the service
+launchctl bootout "gui/$(id -u)/local.weather-bureau-light"
+```
+
+After editing the plist itself, unload and bootstrap it again. The service reads
+the repository's `.env`, including `WBL_HOST` and `WBL_PORT`; check the configured
+port with `/healthz` after starting:
+
+```sh
+curl -sf http://127.0.0.1:5000/healthz
+```
+
 Set a default location with
 `WBL_DEFAULT_SITE` in `.env`, which takes either a
 place name or postcode

@@ -67,6 +67,7 @@
 <nav class="day-tabs" aria-label="Forecast day">
   {% for d in forecast.days %}
   <a class="day-tab{% if d.iso == day.iso %} is-selected{% endif %}"
+     data-date="{{ d.iso }}"{% if d.iso == day.iso %} aria-current="date"{% endif %}
      href="{{ url_for('forecast', site_id=site.id, date=d.iso) }}">
     <span class="day-name">{{ d.tab_label }}</span>
     <span class="day-symbol">
@@ -85,73 +86,80 @@
   {% endfor %}
 </nav>
 
-<script>
-  // Selecting a day reloads the page and resets the strip's horizontal scroll. Make
-  // the selected day visible again without changing the page's vertical scroll.
-  (function () {
-    var selected = document.querySelector('.day-tab.is-selected');
-    if (!selected) return;
-    var strip = selected.parentElement;
-    if (strip.scrollWidth <= strip.clientWidth) return;  // The strip does not overflow.
-    var stripBox = strip.getBoundingClientRect();
-    var tabBox = selected.getBoundingClientRect();
-    strip.scrollLeft += (tabBox.left - stripBox.left) - (stripBox.width - tabBox.width) / 2;
-  })();
-</script>
-
 <div class="table-scroll">
 <table class="forecast-table">
   <caption class="visually-hidden">
-    Detailed forecast for {{ site.display_name }} on {{ day.tab_label }}
+    Detailed hourly forecast for {{ site.display_name }}
   </caption>
 
   <tbody>
+    <tr class="row-day">
+      <th scope="row">Day</th>
+      {% for d in forecast.days %}
+      <th scope="colgroup" colspan="{{ d.timesteps|length }}" data-day="{{ d.iso }}">{{ d.tab_label }}</th>
+      {% endfor %}
+    </tr>
+
     <tr class="row-time">
       <th scope="row"><span class="row-label">Time</span></th>
-      {% for step in day.timesteps %}<td>{{ step.label }}</td>{% endfor %}
+      {% for d in forecast.days %}
+      {% set day_index = loop.index0 %}
+      {% for step in d.timesteps %}<td{% if day_index > 0 %} data-day="{{ d.iso }}"{% endif %}>{{ step.label }}</td>{% endfor %}
+      {% endfor %}
     </tr>
 
     <tr class="row-symbol">
       <th scope="row"><span class="row-label">Weather</span></th>
-      {% for step in day.timesteps %}
-      <td>
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}
+      <td data-day="{{ d.iso }}">
         {%- if step.symbol.known -%}
         {{ sprite.icon(step.symbol.sprite, step.symbol.night, step.symbol.label) }}
         {%- else -%}<span class="na">&mdash;</span>{%- endif -%}
       </td>
       {% endfor %}
+      {% endfor %}
     </tr>
 
     <tr class="row-precip">
       <th scope="row"><span class="row-label">Chance of precipitation</span></th>
-      {% for step in day.timesteps %}<td>{{ cell(step, 'precipitation_probability', '%') }}</td>{% endfor %}
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}<td data-day="{{ d.iso }}">{{ cell(step, 'precipitation_probability', '%') }}</td>{% endfor %}
+      {% endfor %}
     </tr>
 
     <tr class="row-temp">
       <th scope="row"><span class="row-label">Temperature</span></th>
-      {% for step in day.timesteps %}
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}
       {% set t = step.rounded('temperature') %}
-      <td><span class="temp-chip"{% if t is not none %} data-t="{{ t }}"{% endif %}>{{ cell(step, 'temperature', '°') }}</span></td>
+      <td data-day="{{ d.iso }}"><span class="temp-chip"{% if t is not none %} data-t="{{ t }}"{% endif %}>{{ cell(step, 'temperature', '°') }}</span></td>
+      {% endfor %}
       {% endfor %}
     </tr>
 
     <tr class="row-feels">
       <th scope="row"><span class="row-label">Feels like</span></th>
-      {% for step in day.timesteps %}<td>{{ cell(step, 'feels_like', '°') }}</td>{% endfor %}
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}<td data-day="{{ d.iso }}">{{ cell(step, 'feels_like', '°') }}</td>{% endfor %}
+      {% endfor %}
     </tr>
 
     <tr class="row-range">
       <th scope="row"><span class="row-label">Likely range <span class="hint">10th&ndash;90th percentile</span></span></th>
-      {% for step in day.timesteps %}
-      <td class="range-cell">{{ step.value('temperature').range_text('°') }}</td>
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}
+      <td class="range-cell" data-day="{{ d.iso }}">{{ step.value('temperature').range_text('°') }}</td>
+      {% endfor %}
       {% endfor %}
     </tr>
 
     <tr class="row-wind">
       <th scope="row"><span class="row-label">Wind speed and direction</span></th>
-      {% for step in day.timesteps %}
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}
       {% set dir = step.median('wind_direction') %}
-      <td>
+      <td data-day="{{ d.iso }}">
         {% if dir is not none %}
         <span class="wind-arrow" style="--dir: {{ dir }}deg" aria-hidden="true">&uarr;</span>
         {% endif %}
@@ -159,43 +167,147 @@
         {% if step.wind_direction_text %}<span class="wind-dir">{{ step.wind_direction_text }}</span>{% endif %}
       </td>
       {% endfor %}
+      {% endfor %}
     </tr>
 
     <tr class="row-gust">
       <th scope="row"><span class="row-label">Wind gust</span></th>
-      {% for step in day.timesteps %}
-      <td{% if step.gust_is_strong %} class="strong"{% endif %}>{{ cell(step, 'wind_gust') }}</td>
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}
+      <td data-day="{{ d.iso }}"{% if step.gust_is_strong %} class="strong"{% endif %}>{{ cell(step, 'wind_gust') }}</td>
+      {% endfor %}
       {% endfor %}
     </tr>
 
     <tr class="row-vis">
       <th scope="row"><span class="row-label">Visibility</span></th>
-      {% for step in day.timesteps %}
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}
       {% set band = step.visibility_band %}
-      <td>{% if band %}<abbr title="{{ band.label }}">{{ band.code }}</abbr>{% else %}<span class="na">&mdash;</span>{% endif %}</td>
+      <td data-day="{{ d.iso }}">{% if band %}<abbr title="{{ band.label }}">{{ band.code }}</abbr>{% else %}<span class="na">&mdash;</span>{% endif %}</td>
+      {% endfor %}
       {% endfor %}
     </tr>
 
     <tr class="row-humidity">
       <th scope="row"><span class="row-label">Humidity</span></th>
-      {% for step in day.timesteps %}<td>{{ cell(step, 'humidity', '%') }}</td>{% endfor %}
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}<td data-day="{{ d.iso }}">{{ cell(step, 'humidity', '%') }}</td>{% endfor %}
+      {% endfor %}
     </tr>
 
     <tr class="row-uv">
       <th scope="row"><span class="row-label">UV index</span></th>
-      {% for step in day.timesteps %}
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}
       {% set uv = step.rounded('uv') %}
-      <td>{% if uv is none %}<span class="na">&mdash;</span>{% else %}<abbr class="uv uv-{{ uv }}" title="{{ step.uv_band }}">{{ uv }}</abbr>{% endif %}</td>
+      <td data-day="{{ d.iso }}">{% if uv is none %}<span class="na">&mdash;</span>{% else %}<abbr class="uv uv-{{ uv }}" title="{{ step.uv_band }}">{{ uv }}</abbr>{% endif %}</td>
+      {% endfor %}
       {% endfor %}
     </tr>
 
     <tr class="row-pressure">
       <th scope="row"><span class="row-label">Pressure</span></th>
-      {% for step in day.timesteps %}<td>{{ cell(step, 'pressure') }}</td>{% endfor %}
+      {% for d in forecast.days %}
+      {% for step in d.timesteps %}<td data-day="{{ d.iso }}">{{ cell(step, 'pressure') }}</td>{% endfor %}
+      {% endfor %}
     </tr>
   </tbody>
 </table>
 </div>
+
+<script>
+  // Keep the selected day and the visible hours in sync. The table contains all
+  // forecast days so a horizontal scroll can naturally reveal the days on either
+  // side of the one currently selected.
+  (function () {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.day-tab'));
+    var strip = document.querySelector('.day-tabs');
+    var tableScroll = document.querySelector('.table-scroll');
+    var table = tableScroll && tableScroll.querySelector('.forecast-table');
+    if (!tabs.length || !strip || !tableScroll || !table) return;
+
+    var dayHeaders = Array.prototype.slice.call(table.querySelectorAll('.row-day th[data-day]'));
+    var timeCells = Array.prototype.slice.call(table.querySelectorAll('.row-time td'));
+    var dayForCell = [];
+    dayHeaders.forEach(function (header) {
+      for (var i = 0; i < header.colSpan; i++) dayForCell.push(header.dataset.day);
+    });
+    var selectedDate = '{{ day.iso }}';
+
+    function tabFor(date) {
+      return tabs.find(function (tab) { return tab.dataset.date === date; });
+    }
+
+    function setSelectedDay(date, updateUrl) {
+      if (!date || date === selectedDate) return;
+      var tab = tabFor(date);
+      if (!tab) return;
+      selectedDate = date;
+      tabs.forEach(function (candidate) {
+        var selected = candidate === tab;
+        candidate.classList.toggle('is-selected', selected);
+        if (selected) candidate.setAttribute('aria-current', 'date');
+        else candidate.removeAttribute('aria-current');
+      });
+      dayHeaders.forEach(function (header) {
+        header.classList.toggle('is-selected', header.dataset.day === date);
+      });
+      tab.scrollIntoView({ block: 'nearest', inline: 'center' });
+      if (updateUrl && window.history && window.history.replaceState) {
+        var url = new URL(window.location.href);
+        url.searchParams.set('date', date);
+        window.history.replaceState(null, '', url);
+      }
+    }
+
+    function visibleDay() {
+      var box = tableScroll.getBoundingClientRect();
+      var center = box.left + box.width / 2;
+      var nearest = null;
+      var distance = Infinity;
+      timeCells.forEach(function (cell, index) {
+        var cellBox = cell.getBoundingClientRect();
+        var cellCenter = cellBox.left + cellBox.width / 2;
+        var candidateDistance = Math.abs(cellCenter - center);
+        if (candidateDistance < distance) {
+          distance = candidateDistance;
+          nearest = dayForCell[index];
+        }
+      });
+      return nearest;
+    }
+
+    function showDay(date, smooth) {
+      var header = dayHeaders.find(function (candidate) { return candidate.dataset.day === date; });
+      if (!header) return;
+      if (header === dayHeaders[0]) {
+        tableScroll.scrollTo({ left: 0, behavior: smooth ? 'smooth' : 'auto' });
+        return;
+      }
+      var scrollBox = tableScroll.getBoundingClientRect();
+      var headerBox = header.getBoundingClientRect();
+      var offset = (headerBox.left - scrollBox.left) - (scrollBox.width - headerBox.width) / 2;
+      tableScroll.scrollTo({ left: tableScroll.scrollLeft + offset, behavior: smooth ? 'smooth' : 'auto' });
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function (event) {
+        event.preventDefault();
+        var date = tab.dataset.date;
+        setSelectedDay(date, true);
+        showDay(date, true);
+      });
+    });
+    dayHeaders.forEach(function (header) {
+      header.classList.toggle('is-selected', header.dataset.day === selectedDate);
+    });
+    showDay(selectedDate, false);
+    tableScroll.addEventListener('scroll', function () {
+      setSelectedDay(visibleDay(), true);
+    }, { passive: true });
+  })();
+</script>
 
 <p class="units-note">
   Temperature &deg;C &middot; wind and gust mph &middot; pressure hPa &middot;

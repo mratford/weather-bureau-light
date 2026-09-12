@@ -241,6 +241,13 @@ body {
 .forecast-table tr { border-top: 1px solid var(--rule); }
 .forecast-table tr:first-child { border-top: 0; }
 
+.row-day th[scope="colgroup"] {
+  padding: 0.45rem 0.75rem; text-align: left; font-size: 0.9rem;
+  color: var(--ink); background: var(--band-strong); border-left: 2px solid var(--rule);
+  white-space: nowrap;
+}
+.row-day th[scope="colgroup"].is-selected { background: var(--page); }
+
 .row-time td { font-weight: 700; color: var(--ink); background: var(--band); }
 .row-time th[scope="row"] { background: var(--band-strong); }
 
